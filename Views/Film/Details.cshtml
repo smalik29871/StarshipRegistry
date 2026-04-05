@@ -1,0 +1,377 @@
+﻿@using StarshipRegistry.Helpers
+@inject DetailsHelper DetailsHelper
+
+@model StarshipRegistry.Models.ViewModels.FilmDetailsViewModel
+
+@{
+    string mode = ViewData["PageMode"]?.ToString() ?? "Details";
+    bool isEditMode = mode == "Edit";
+
+    ViewData["Title"] = "Film Dossier - " + Model.Film.Title;
+    
+    string returnUrl = ViewData["ReturnUrl"]?.ToString() ?? "";
+}
+
+<div class="container mt-4 pb-5">
+    <div class="mb-4">
+        @{
+            string backUrl = !string.IsNullOrEmpty(returnUrl) ? returnUrl : "javascript:history.back()";
+        }
+        <a href="@backUrl" class="btn btn-outline-secondary btn-sm" onclick="if(this.href === 'javascript:history.back()' && window.history.length <= 1) { window.location.href='/'; return false; }">
+            <i class="bi bi-arrow-left me-1"></i> Back
+        </a>
+    </div>
+
+    <form asp-action="Edit" method="post">
+        <div class="text-center mb-5 d-flex justify-content-between align-items-center">
+            <div class="flex-grow-1">
+                <span class="text-uppercase text-warning font-monospace small">Imperial Archive Records</span>
+                @if (isEditMode)
+                {
+                    <input type="text" name="Title" class="form-control form-control-lg bg-dark text-info border-info fs-3 mt-1" value="@Model.Film.Title" required />
+                }
+                else
+                {
+                    <h1 class="display-4 text-info">@Model.Film.Title</h1>
+                }
+            </div>
+
+            <div class="ms-3">
+                @if (isEditMode)
+                {
+                    <button type="submit" class="btn btn-outline-success">
+                        <i class="bi bi-check-lg me-1"></i> Save Changes
+                    </button>
+                    <a href="@Url.Action("Details", "Film", new { id = Model.Film.Url?.TrimEnd('/').Split('/').Last(), returnUrl = returnUrl })" class="btn btn-outline-secondary">Cancel</a>
+                }
+                else
+                {
+                    <a asp-action="Details"
+                           asp-route-id="@Model.Film.Url?.TrimEnd('/').Split('/').Last()"
+                           asp-route-edit="true"
+                           asp-route-returnUrl="@returnUrl"
+                           class="btn btn-outline-info">
+                        <i class="bi bi-pencil me-1"></i> Edit
+                    </a>
+                }
+            </div>
+        </div>
+
+        @if (isEditMode)
+        {
+            <input type="hidden" name="Url" value="@Model.Film.Url" />
+            <input type="hidden" name="returnUrl" value="@returnUrl" />
+        }
+
+        <div class="row">
+            <div class="col-lg-8">
+            <div class="card bg-dark text-white border-secondary mb-4 shadow">
+                <div class="card-header border-secondary bg-black">
+                    <h5 class="mb-0 text-warning font-monospace"><i class="bi bi-file-earmark-text me-2"></i>Opening Crawl</h5>
+                </div>
+                <div class="card-body bg-black py-4">
+                    @if (isEditMode)
+                    {
+                        <textarea name="OpeningCrawl" class="form-control bg-dark text-warning border-secondary font-monospace" rows="8" required>@Model.Film.OpeningCrawl</textarea>
+                    }
+                    else
+                    {
+                        <pre class="text-warning text-center fs-5" style="white-space: pre-wrap; font-family: 'Orbitron', sans-serif; line-height: 1.8;">@Model.Film.OpeningCrawl</pre>
+                    }
+                </div>
+            </div>
+
+            <div class="card bg-dark text-white border-secondary mb-4">
+                <div class="card-header border-secondary bg-black">
+                    <h5 class="mb-0 text-info font-monospace"><i class="bi bi-person-badge me-2"></i>Production Credits</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p class="text-white-50 mb-1">Episode</p>
+                            @if (isEditMode)
+                            {
+                                <input type="number" name="EpisodeId" class="form-control bg-dark text-white border-secondary" value="@Model.Film.EpisodeId" required />
+                            }
+                            else
+                            {
+                                <p class="fs-5">@Model.Film.EpisodeId</p>
+                            }
+                        </div>
+                        <div class="col-md-6">
+                            <p class="text-white-50 mb-1">Release Date</p>
+                            @if (isEditMode)
+                            {
+                                <input type="text" name="ReleaseDate" class="form-control bg-dark text-white border-secondary" value="@Model.Film.ReleaseDate" />
+                            }
+                            else
+                            {
+                                <p class="fs-5">@Model.Film.ReleaseDate</p>
+                            }
+                        </div>
+                        <div class="col-md-6">
+                            <p class="text-white-50 mb-1">Director</p>
+                            @if (isEditMode)
+                            {
+                                <input type="text" name="Director" class="form-control bg-dark text-white border-secondary" value="@Model.Film.Director" required />
+                            }
+                            else
+                            {
+                                <p class="fs-5">@Model.Film.Director</p>
+                            }
+                        </div>
+                        <div class="col-md-6">
+                            <p class="text-white-50 mb-1">Producers</p>
+                            @if (isEditMode)
+                            {
+                                <input type="text" name="Producer" class="form-control bg-dark text-white border-secondary" value="@Model.Film.Producer" />
+                            }
+                            else
+                            {
+                                <p class="fs-5">@Model.Film.Producer</p>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card bg-dark text-white border-info shadow mb-4">
+                <div class="card-header border-info bg-black">
+                    <h5 class="mb-0 text-info font-monospace"><i class="bi bi-people me-2"></i>Characters Involved</h5>
+                </div>
+                <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                    @if (isEditMode)
+                    {
+                        <div class="character-selector">
+                            @{
+                                var availableCharacters = ViewData["AvailableCharacters"] as List<StarshipRegistry.Models.Character> ?? new();
+                            }
+                            @if (availableCharacters.Any())
+                            {
+                                <div class="list-group list-group-flush bg-dark">
+                                    @foreach (var character in availableCharacters.OrderByDescending(c => Model.Film.Characters?.Contains(c.Url) ?? false))
+                                    {
+                                        bool isSelected = Model.Film.Characters?.Contains(character.Url) ?? false;
+                                        <label class="list-group-item bg-dark text-white border-secondary d-flex align-items-center gap-2 cursor-pointer">
+                                            <input type="checkbox" name="selectedCharacters" value="@character.Url" @(isSelected ? "checked" : "") class="form-check-input" />
+                                            <span class="flex-grow-1">👤 @character.Name</span>
+                                        </label>
+                                    }
+                                </div>
+                            }
+                            else
+                            {
+                                <p class="text-muted">No characters available in the database</p>
+                            }
+                        </div>
+                    }
+                    else if (Model.Film.Characters.Any())
+                    {
+                        <div class="list-group list-group-flush bg-dark">
+                            @foreach (var url in Model.Film.Characters)
+                            {
+                                var id = url.TrimEnd('/').Split('/').Last();
+                                var characterName = Model.CharacterNames.TryGetValue(url, out var name) ? name : "Unknown Character";
+                                <a asp-controller="People" asp-action="Details" asp-route-id="@id" class="list-group-item list-group-item-action bg-dark text-white border-secondary d-flex justify-content-between align-items-center">
+                                    <span>👤 @characterName</span>
+                                    <i class="bi bi-chevron-right text-info small"></i>
+                                </a>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div class="card bg-dark text-white border-info shadow">
+                <div class="card-header border-info bg-black">
+                    <h5 class="mb-0 text-info font-monospace"><i class="bi bi-globe me-2"></i>Planets Visited</h5>
+                </div>
+                <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                    @if (isEditMode)
+                    {
+                        <div class="planet-selector">
+                            @{
+                                var availablePlanets = ViewData["AvailablePlanets"] as List<StarshipRegistry.Models.Planet> ?? new();
+                            }
+                            @if (availablePlanets.Any())
+                            {
+                                <div class="list-group list-group-flush bg-dark">
+                                    @foreach (var planet in availablePlanets.OrderByDescending(p => Model.Film.Planets?.Contains(p.Url) ?? false))
+                                    {
+                                        bool isSelected = Model.Film.Planets?.Contains(planet.Url) ?? false;
+                                        <label class="list-group-item bg-dark text-white border-secondary d-flex align-items-center gap-2 cursor-pointer">
+                                            <input type="checkbox" name="selectedPlanets" value="@planet.Url" @(isSelected ? "checked" : "") class="form-check-input" />
+                                            <span class="flex-grow-1">🌍 @planet.Name</span>
+                                        </label>
+                                    }
+                                </div>
+                            }
+                            else
+                            {
+                                <p class="text-muted">No planets available in the database</p>
+                            }
+                        </div>
+                    }
+                    else if (Model.Film.Planets.Any())
+                    {
+                        <div class="list-group list-group-flush bg-dark">
+                            @foreach (var url in Model.Film.Planets)
+                            {
+                                var id = url.TrimEnd('/').Split('/').Last();
+                                var planetName = Model.PlanetNames.TryGetValue(url, out var name) ? name : "Unknown Planet";
+                                <a asp-controller="Planet" asp-action="Details" asp-route-id="@id" class="list-group-item list-group-item-action bg-dark text-white border-secondary d-flex justify-content-between align-items-center">
+                                    <span>🌍 @planetName</span>
+                                    <i class="bi bi-chevron-right text-info small"></i>
+                                </a>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div class="card bg-dark text-white border-info shadow">
+                <div class="card-header border-info bg-black">
+                    <h5 class="mb-0 text-info font-monospace"><i class="bi bi-globe me-2"></i>Starships</h5>
+                </div>
+                <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                    @if (isEditMode)
+                    {
+                        <div class="starship-selector">
+                            @{
+                                var availableStarships = ViewData["AvailableStarships"] as List<StarshipRegistry.Models.Starship> ?? new();
+                            }
+                            @if (availableStarships.Any())
+                            {
+                                <div class="list-group list-group-flush bg-dark">
+                                    @foreach (var starship in availableStarships.OrderByDescending(s => Model.Film.Starships?.Contains(s.Url) ?? false))
+                                    {
+                                        bool isSelected = Model.Film.Starships?.Contains(starship.Url) ?? false;
+                                        <label class="list-group-item bg-dark text-white border-secondary d-flex align-items-center gap-2 cursor-pointer">
+                                            <input type="checkbox" name="selectedStarships" value="@starship.Url" @(isSelected ? "checked" : "") class="form-check-input" />
+                                            <span class="flex-grow-1">🚀 @starship.Name</span>
+                                        </label>
+                                    }
+                                </div>
+                            }
+                            else
+                            {
+                                <p class="text-muted">No starships available in the database</p>
+                            }
+                        </div>
+                    }
+                    else if (Model.Film.Starships.Any())
+                    {
+                        <div class="list-group list-group-flush bg-dark">
+                            @foreach (var url in Model.Film.Starships)
+                            {
+                                var id = url.TrimEnd('/').Split('/').Last();
+                                var starshipName = Model.StarshipNames.TryGetValue(url, out var name) ? name : "Unknown Starship";
+                                <a asp-controller="Starship" asp-action="Details" asp-route-id="@id" class="list-group-item list-group-item-action bg-dark text-white border-secondary d-flex justify-content-between align-items-center">
+                                    <span>🚀 @starshipName</span>
+                                    <i class="bi bi-chevron-right text-info small"></i>
+                                </a>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+
+
+            <div class="card bg-dark text-white border-info shadow">
+                <div class="card-header border-info bg-black">
+                    <h5 class="mb-0 text-info font-monospace"><i class="bi bi-globe me-2"></i>Vehicles</h5>
+                </div>
+                <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                    @if (isEditMode)
+                    {
+                        <div class="vehicle-selector">
+                            @{
+                                var availableVehicles = ViewData["AvailableVehicles"] as List<StarshipRegistry.Models.Vehicle> ?? new();
+                            }
+                            @if (availableVehicles.Any())
+                            {
+                                <div class="list-group list-group-flush bg-dark">
+                                    @foreach (var vehicle in availableVehicles.OrderByDescending(v => Model.Film.Vehicles?.Contains(v.Url) ?? false))
+                                    {
+                                        bool isSelected = Model.Film.Vehicles?.Contains(vehicle.Url) ?? false;
+                                        <label class="list-group-item bg-dark text-white border-secondary d-flex align-items-center gap-2 cursor-pointer">
+                                            <input type="checkbox" name="selectedVehicles" value="@vehicle.Url" @(isSelected ? "checked" : "") class="form-check-input" />
+                                            <span class="flex-grow-1">🚲 @vehicle.Name</span>
+                                        </label>
+                                    }
+                                </div>
+                            }
+                            else
+                            {
+                                <p class="text-muted">No vehicles available in the database</p>
+                            }
+                        </div>
+                    }
+                    else if (Model.Film.Vehicles.Any())
+                    {
+                        <div class="list-group list-group-flush bg-dark">
+                            @foreach (var url in Model.Film.Vehicles)
+                            {
+                                var id = url.TrimEnd('/').Split('/').Last();
+                                var vehicleName = Model.VehicleNames.TryGetValue(url, out var name) ? name : "Unknown Vehicle";
+                                <a asp-controller="Vehicle" asp-action="Details" asp-route-id="@id" class="list-group-item list-group-item-action bg-dark text-white border-secondary d-flex justify-content-between align-items-center">
+                                    <span>🚲 @vehicleName</span>
+                                    <i class="bi bi-chevron-right text-info small"></i>
+                                </a>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+            <div class="card bg-dark text-white border-info shadow">
+                <div class="card-header border-info bg-black">
+                    <h5 class="mb-0 text-info font-monospace"><i class="bi bi-globe me-2"></i>Species</h5>
+                </div>
+                <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                    @if (isEditMode)
+                    {
+                        <div class="species-selector">
+                            @{
+                                var availableSpecies = ViewData["AvailableSpecies"] as List<StarshipRegistry.Models.Species> ?? new();
+                            }
+                            @if (availableSpecies.Any())
+                            {
+                                <div class="list-group list-group-flush bg-dark">
+                                    @foreach (var species in availableSpecies.OrderByDescending(s => Model.Film.Species?.Contains(s.Url) ?? false))
+                                    {
+                                        bool isSelected = Model.Film.Species?.Contains(species.Url) ?? false;
+                                        <label class="list-group-item bg-dark text-white border-secondary d-flex align-items-center gap-2 cursor-pointer">
+                                            <input type="checkbox" name="selectedSpecies" value="@species.Url" @(isSelected ? "checked" : "") class="form-check-input" />
+                                            <span class="flex-grow-1">🧬 @species.Name</span>
+                                        </label>
+                                    }
+                                </div>
+                            }
+                            else
+                            {
+                                <p class="text-muted">No species available in the database</p>
+                            }
+                        </div>
+                    }
+                    else if (Model.Film.Species.Any())
+                    {
+                        <div class="list-group list-group-flush bg-dark">
+                            @foreach (var url in Model.Film.Species)
+                            {
+                                var id = url.TrimEnd('/').Split('/').Last();
+                                var speciesName = Model.SpeciesNames.TryGetValue(url, out var name) ? name : "Unknown Species";
+                                <a asp-controller="Species" asp-action="Details" asp-route-id="@id" class="list-group-item list-group-item-action bg-dark text-white border-secondary d-flex justify-content-between align-items-center">
+                                    <span>🧬 @speciesName</span>
+                                    <i class="bi bi-chevron-right text-info small"></i>
+                                </a>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+</div>

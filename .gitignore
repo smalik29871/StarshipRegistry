@@ -1,0 +1,6 @@
+# Ignore all compiled build outputs
+[Bb]in/
+[Oo]bj/
+
+# Ignore Visual Studio temporary cache and options
+.vs/

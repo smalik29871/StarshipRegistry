@@ -1,0 +1,63 @@
+﻿@{
+    ViewData["Title"] = "Imperial Command";
+}
+
+<div class="container mt-5">
+    <div class="row text-center mb-5">
+        <div class="col">
+            <h1 class="display-4">Imperial Command Center</h1>
+            <p class="lead text-muted">Fleet Management & Asset Registry Dashboard</p>
+        </div>
+    </div>
+
+    @* Stat Cards Grid *@
+    <div class="row g-4 mb-5">
+        @* Total Ships Card *@
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm text-center">
+                <div class="card-body py-4">
+                    <i class="bi bi-rocket-takeoff display-6 text-warning mb-2"></i>
+                    <h5 class="text-uppercase text-secondary small">Total Fleet Ships</h5>
+                    <h2 class="display-5 text-warning">@ViewBag.TotalShips</h2>
+                </div>
+            </div>
+        </div>
+
+        @* Total Cost Card *@
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm text-center">
+                <div class="card-body py-4">
+                    <i class="bi bi-coin display-6 text-warning mb-2"></i>
+                    <h5 class="text-uppercase text-secondary small">Total Assets Value</h5>
+                    <h2 class="display-6 text-warning">@(ViewBag.TotalCost > 0 ? ViewBag.TotalCost.ToString("N0") + " Cr" : "0 Cr")</h2>
+                </div>
+            </div>
+        </div>
+
+        @* Top Rated Ship Card *@
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm text-center">
+                <div class="card-body py-4">
+                    <i class="bi bi-stars display-6 text-warning mb-2"></i>
+                    <h5 class="text-uppercase text-secondary small">Fastest Class</h5>
+                    <h2 class="fs-4 text-warning mt-2">@ViewBag.TopSpeedShip</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @* Quick Actions *@
+    <div class="row justify-content-center">
+        <div class="col-md-6 text-center">
+            <div class="card">
+                <div class="card-body p-5">
+                    <h3 class="mb-3">Access Registry</h3>
+                    <p class="text-muted mb-4">Proceed to the starship database to query, filter, or sync live Imperial asset data directly from the external holonet.</p>
+                    <a asp-controller="Starship" asp-action="Index" class="btn btn-outline-primary btn-lg px-4">
+                        <i class="bi bi-terminal-fill me-2"></i> Open Command Registry
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

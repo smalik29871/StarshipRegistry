@@ -1,0 +1,266 @@
+﻿@using StarshipRegistry.Helpers
+@inject DetailsHelper DetailsHelper
+
+@model StarshipRegistry.Models.ViewModels.SpeciesDetailsViewModel
+
+@{
+    string mode = ViewData["PageMode"]?.ToString() ?? "Details";
+    bool isEditMode = mode == "Edit";
+
+    ViewData["Title"] = "Species Profile - " + Model.Species.Name;
+}
+
+<div class="container mt-4 pb-5">
+    <div class="mb-4">
+        @{
+            string returnUrl = ViewData["ReturnUrl"]?.ToString() ?? "";
+            string backUrl = !string.IsNullOrEmpty(returnUrl) ? returnUrl : "javascript:history.back()";
+        }
+        <a href="@backUrl" class="btn btn-outline-secondary btn-sm" onclick="if(this.href === 'javascript:history.back()' && window.history.length <= 1) { window.location.href='/'; return false; }">
+            <i class="bi bi-arrow-left me-1"></i> Back
+        </a>
+    </div>
+
+    @* Form wrapper *@
+    <form asp-action="Edit" method="post">
+        @* Header *@
+        <div class="text-center mb-5 d-flex justify-content-between align-items-center">
+            <div class="flex-grow-1">
+                <span class="text-uppercase text-warning font-monospace small">Galactic Xeno-Biology Database</span>
+                @if (isEditMode)
+                {
+                    <input type="text" name="Name" class="form-control form-control-lg bg-dark text-info border-info fs-3 mt-1" value="@Model.Species.Name" required />
+                }
+                else
+                {
+                    <h1 class="display-4 text-info">@Model.Species.Name</h1>
+                }
+            </div>
+
+            <div class="ms-3">
+                @if (isEditMode)
+                {
+                    <button type="submit" class="btn btn-outline-success">
+                        <i class="bi bi-check-lg me-1"></i> Save Changes
+                    </button>
+                    <a href="@(!string.IsNullOrEmpty(returnUrl) ? returnUrl : Url.Action("Details", "Species", new { id = Model.Species.Url?.TrimEnd('/').Split('/').Last() }) ?? "/Species")" class="btn btn-outline-secondary">Cancel</a>
+                }
+                else
+                {
+                    <a asp-action="Details" asp-route-id="@Model.Species.Url?.TrimEnd('/').Split('/').Last()" asp-route-edit="true" class="btn btn-outline-info">
+                        <i class="bi bi-pencil me-1"></i> Edit
+                    </a>
+                }
+            </div>
+        </div>
+
+        @* Hidden fields *@
+        @if (isEditMode)
+        {
+            <input type="hidden" name="Url" value="@Model.Species.Url" />
+            <input type="hidden" name="returnUrl" value="@returnUrl" />
+        }
+
+        <div class="row">
+            @* Left Column: Traits *@
+            <div class="col-lg-7">
+                <div class="card bg-dark text-white border-secondary mb-4 shadow">
+                    <div class="card-header border-secondary bg-black">
+                        <h5 class="mb-0 text-info font-monospace"><i class="bi bi-dna me-2"></i>Biological Classification</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <p class="text-white-50 mb-1">Classification</p>
+                                @if (isEditMode)
+                                {
+                                    <input type="text" name="Classification" class="form-control bg-dark text-white border-secondary" value="@Model.Species.Classification" required />
+                                }
+                                else
+                                {
+                                    <p class="fs-5 text-capitalize">@Model.Species.Classification</p>
+                                }
+                            </div>
+                            <div class="col-md-6">
+                                <p class="text-white-50 mb-1">Designation</p>
+                                @if (isEditMode)
+                                {
+                                    <input type="text" name="Designation" class="form-control bg-dark text-white border-secondary" value="@Model.Species.Designation" />
+                                }
+                                else
+                                {
+                                    <p class="fs-5 text-capitalize">@Model.Species.Designation</p>
+                                }
+                            </div>
+                            <div class="col-md-6">
+                                <p class="text-white-50 mb-1">Average Lifespan</p>
+                                @if (isEditMode)
+                                {
+                                    <input type="text" name="AverageLifespan" class="form-control bg-dark text-white border-secondary" value="@Model.Species.AverageLifespan" />
+                                }
+                                else
+                                {
+                                    <p class="fs-5">@Model.Species.AverageLifespan years</p>
+                                }
+                            </div>
+                            <div class="col-md-6">
+                                <p class="text-white-50 mb-1">Average Height</p>
+                                @if (isEditMode)
+                                {
+                                    <input type="text" name="AverageHeight" class="form-control bg-dark text-white border-secondary" value="@Model.Species.AverageHeight" />
+                                }
+                                else
+                                {
+                                    <p class="fs-5">@Model.Species.AverageHeight cm</p>
+                                }
+                            </div>
+                            <div class="col-md-6">
+                                <p class="text-white-50 mb-1">Language</p>
+                                @if (isEditMode)
+                                {
+                                    <input type="text" name="Language" class="form-control bg-dark text-white border-secondary" value="@Model.Species.Language" required />
+                                }
+                                else
+                                {
+                                    <p class="fs-5">@Model.Species.Language</p>
+                                }
+                            </div>
+                            <div class="col-md-6">
+                                <p class="text-white-50 mb-1">Skin Colors</p>
+                                @if (isEditMode)
+                                {
+                                    <input type="text" name="SkinColors" class="form-control bg-dark text-white border-secondary" value="@Model.Species.SkinColors" />
+                                }
+                                else
+                                {
+                                    <p class="fs-5">@Model.Species.SkinColors</p>
+                                }
+                            </div>
+                            <div class="col-md-6">
+                                <p class="text-white-50 mb-1">Hair Colors</p>
+                                @if (isEditMode)
+                                {
+                                    <input type="text" name="HairColors" class="form-control bg-dark text-white border-secondary" value="@Model.Species.HairColors" />
+                                }
+                                else
+                                {
+                                    <p class="fs-5">@Model.Species.HairColors</p>
+                                }
+                            </div>
+                            <div class="col-md-6">
+                                <p class="text-white-50 mb-1">Eye Colors</p>
+                                @if (isEditMode)
+                                {
+                                    <input type="text" name="EyeColors" class="form-control bg-dark text-white border-secondary" value="@Model.Species.EyeColors" />
+                                }
+                                else
+                                {
+                                    <p class="fs-5">@Model.Species.EyeColors</p>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            @* Right Column: Links *@
+            <div class="col-lg-5">
+                @* Known Members Box *@
+                <div class="card bg-dark text-white border-info shadow mb-4">
+                    <div class="card-header border-info bg-black">
+                        <h5 class="mb-0 text-info font-monospace"><i class="bi bi-people me-2"></i>Known Members</h5>
+                    </div>
+                    <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                        @if (isEditMode)
+                        {
+                            <div class="character-selector">
+                                @{
+                                    var availableCharacters = ViewData["AvailableCharacters"] as List<StarshipRegistry.Models.Character> ?? new();
+                                }
+                                @if (availableCharacters.Any())
+                                {
+                                    <div class="list-group list-group-flush bg-dark">
+                                        @foreach (var character in availableCharacters.OrderByDescending(c => Model.Species.People?.Contains(c.Url) ?? false))
+                                        {
+                                            bool isSelected = Model.Species.People?.Contains(character.Url) ?? false;
+                                            <label class="list-group-item bg-dark text-white border-secondary d-flex align-items-center gap-2 cursor-pointer">
+                                                <input type="checkbox" name="selectedPeople" value="@character.Url" @(isSelected ? "checked" : "") class="form-check-input" />
+                                                <span class="flex-grow-1">👤 @character.Name</span>
+                                            </label>
+                                        }
+                                    </div>
+                                }
+                                else
+                                {
+                                    <p class="text-muted">No characters available in the database</p>
+                                }
+                            </div>
+                        }
+                        else if (Model.Species.People.Any())
+                        {
+                            <div class="list-group list-group-flush bg-dark">
+                                @foreach (var url in Model.Species.People)
+                                {
+                                    var id = url.TrimEnd('/').Split('/').Last();
+                                    var characterName = Model.CharacterNames.TryGetValue(url, out var name) ? name : "Unknown Character";
+                                    <a asp-controller="People" asp-action="Details" asp-route-id="@id" class="list-group-item list-group-item-action bg-dark text-white border-secondary d-flex justify-content-between align-items-center">
+                                        <span>👤 @characterName</span>
+                                        <i class="bi bi-chevron-right text-info small"></i>
+                                    </a>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                @* Films Box *@
+                <div class="card bg-dark text-white border-info shadow">
+                    <div class="card-header border-info bg-black">
+                        <h5 class="mb-0 text-info font-monospace"><i class="bi bi-film me-2"></i>Featured Films</h5>
+                    </div>
+                    <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                        @if (isEditMode)
+                        {
+                            <div class="film-selector">
+                                @{
+                                    var availableFilms = ViewData["AvailableFilms"] as List<StarshipRegistry.Models.Film> ?? new();
+                                }
+                                @if (availableFilms.Any())
+                                {
+                                    <div class="list-group list-group-flush bg-dark">
+                                        @foreach (var film in availableFilms.OrderByDescending(f => Model.Species.Films?.Contains(f.Url) ?? false))
+                                        {
+                                            bool isSelected = Model.Species.Films?.Contains(film.Url) ?? false;
+                                            <label class="list-group-item bg-dark text-white border-secondary d-flex align-items-center gap-2 cursor-pointer">
+                                                <input type="checkbox" name="selectedFilms" value="@film.Url" @(isSelected ? "checked" : "") class="form-check-input" />
+                                                <span class="flex-grow-1">🎬 @film.Title</span>
+                                            </label>
+                                        }
+                                    </div>
+                                }
+                                else
+                                {
+                                    <p class="text-muted">No films available in the database</p>
+                                }
+                            </div>
+                        }
+                        else if (Model.Species.Films.Any())
+                        {
+                            <div class="list-group list-group-flush bg-dark">
+                                @foreach (var url in Model.Species.Films)
+                                {
+                                    var id = url.TrimEnd('/').Split('/').Last();
+                                    var filmTitle = Model.FilmNames.TryGetValue(url, out var title) ? title : "Unknown Film";
+                                    <a asp-controller="Film" asp-action="Details" asp-route-id="@id" class="list-group-item list-group-item-action bg-dark text-white border-secondary d-flex justify-content-between align-items-center">
+                                        <span>🎬 @filmTitle</span>
+                                        <i class="bi bi-chevron-right text-info small"></i>
+                                    </a>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>

@@ -1,0 +1,236 @@
+﻿@model IEnumerable<StarshipRegistry.Models.Starship>
+
+@{
+    ViewData["Title"] = "Starship Registry";
+}
+
+<div class="container-fluid mt-4 pb-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="display-5">Starship Registry</h1>
+        
+        <div class="btn-group">
+            <a asp-controller="Starship" asp-action="Create" class="btn btn-outline-primary">
+                <i class="bi bi-plus-lg me-1"></i> Add Ship
+            </a>
+            
+            <form asp-controller="Starship" asp-action="Seed" method="post" class="d-inline">
+                <button type="submit" class="btn btn-outline-primary ms-2" onclick="showLoader()">
+                    <i class="bi bi-cloud-arrow-down-fill me-1"></i> Sync from SWAPI
+                </button>
+            </form>
+        </div>
+    </div>
+
+    @if (TempData["Message"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="bi bi-check-circle-fill me-2"></i> @TempData["Message"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <div class="mb-4">
+        <div class="input-group">
+            <span class="input-group-text bg-dark border-secondary text-info">
+                <i class="bi bi-stars"></i>
+            </span>
+            <input type="text" id="aiSearchInput" class="form-control bg-dark text-white border-secondary" placeholder="Ask anything... e.g. 'most expensive ships' or 'rebel fighters'" />
+            <button class="btn btn-outline-info" id="aiSearchBtn" type="button">
+                <i class="bi bi-send me-1"></i> AI Search
+            </button>
+            <button class="btn btn-outline-secondary d-none" id="aiClearBtn" type="button">
+                <i class="bi bi-x-lg me-1"></i> Clear
+            </button>
+        </div>
+        <div id="aiSearchStatus" class="form-text text-info ms-1 d-none"></div>
+    </div>
+
+    <div class="card shadow-sm mb-5">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table id="starshipTable" class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Model</th>
+                            <th>Class</th>
+                            <th>Cost (Credits)</th>
+                            <th>Crew</th>
+                            <th>Hyperdrive</th>
+                            <th>Created On</th>
+                            <th class="text-center">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model != null && Model.Any())
+                        {
+                            foreach (var ship in Model)
+                            {
+                                var id = ship.Url.TrimEnd('/').Split('/').Last();
+                                <tr>
+                                    <td class="fw-bold">@ship.Name</td>
+                                    <td style="white-space: nowrap;">@ship.Model</td>
+                                    <td class="text-capitalize">@ship.StarshipClass</td>
+                                    
+                                    <td>@(string.IsNullOrEmpty(ship.CostInCredits) ? "N/A" : ship.CostInCredits)</td>
+                                    <td>@(string.IsNullOrEmpty(ship.Crew) ? "N/A" : ship.Crew)</td>
+                                    <td>@(string.IsNullOrEmpty(ship.HyperdriveRating) ? "N/A" : ship.HyperdriveRating)</td>
+                                    
+                                    <td>
+                                        @(ship.Created.HasValue? ship.Created.Value.ToString("yyyy-MM-dd") : "N/A")
+                                    </td>
+                                    <td class="text-center">
+                                        <div class="btn-group btn-group-sm">
+                                            <a asp-action="Details" asp-route-id="@id" class="btn btn-outline-success">
+                                                <i class="bi bi-search"></i>
+                                            </a>
+                                            
+                                            <a asp-action="Details" asp-route-id="@id" asp-route-edit="true" class="btn btn-outline-info">
+                                                <i class="bi bi-pencil"></i>
+                                            </a>
+
+                                            <button class="btn btn-outline-danger"
+                                                    onclick="populateDeleteModal('@id', '@System.Web.HttpUtility.JavaScriptStringEncode(ship.Name)')"
+                                                    data-bs-toggle="modal" data-bs-target="#deleteModal">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="8" class="text-center py-5 text-muted">
+                                    <i class="bi bi-inbox display-4 d-block mb-3"></i>
+                                    No starships found. Try a different search or click "Sync from SWAPI"!
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-white border border-danger">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title text-danger">⚠️ Decertify Asset</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form asp-action="Delete" method="post">
+                <div class="modal-body">
+                    <input type="hidden" name="id" id="delete-id" />
+                    <p>Are you certain you want to remove <span id="delete-name" class="fw-bold text-warning"></span> from the Imperial registry? This cannot be undone.</p>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-outline-danger">Confirm Deletion</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div id="holonet-loader" class="d-none position-fixed top-0 start-0 w-100 h-100 d-flex flex-column justify-content-center align-items-center" style="background-color: rgba(11, 12, 16, 0.9); z-index: 9999;">
+    <div class="spinner-border text-info mb-4" style="width: 4rem; height: 4rem; border-width: 0.25em;" role="status">
+        <span class="visually-hidden">Loading...</span>
+    </div>
+    <h2 class="text-warning font-monospace" style="font-family: 'Orbitron', sans-serif !important;">ESTABLISHING HOLONET LINK...</h2>
+    <p class="text-info font-monospace mt-2">Downloading starship registry assets from external archives.</p>
+</div>
+
+@section Scripts {
+    <link rel="stylesheet" href="https://cdn.datatables.net/2.3.0/css/dataTables.bootstrap5.min.css" />
+    <link rel="stylesheet" href="https://cdn.datatables.net/responsive/3.0.4/css/responsive.bootstrap5.min.css" />
+    <script src="https://cdn.datatables.net/2.3.0/js/dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/2.3.0/js/dataTables.bootstrap5.min.js"></script>
+    <script src="https://cdn.datatables.net/responsive/3.0.4/js/dataTables.responsive.min.js"></script>
+    <script src="https://cdn.datatables.net/responsive/3.0.4/js/responsive.bootstrap5.min.js"></script>
+    <script>
+        const actionButtons = (id, name) => `
+            <div class="btn-group btn-group-sm">
+                <a href="/Starship/Details/${id}" class="btn btn-outline-success"><i class="bi bi-search"></i></a>
+                <a href="/Starship/Details/${id}?edit=true" class="btn btn-outline-info"><i class="bi bi-pencil"></i></a>
+                <button class="btn btn-outline-danger" onclick="populateDeleteModal('${id}', '${name.replace(/'/g, "\\'")}')"
+                    data-bs-toggle="modal" data-bs-target="#deleteModal"><i class="bi bi-trash"></i></button>
+            </div>`;
+
+        $(document).ready(function () {
+            const table = $('#starshipTable').DataTable({
+                responsive: true,
+                columnDefs: [
+                    { orderable: false, targets: 7 },
+                    { responsivePriority: 1, targets: 0 },
+                    { responsivePriority: 1, targets: 7 }
+                ],
+                language: {
+                    search: '<i class="bi bi-search"></i>',
+                    searchPlaceholder: 'Search by name, model...'
+                }
+            });
+
+            async function runAiSearch() {
+                const query = document.getElementById('aiSearchInput').value.trim();
+                const status = document.getElementById('aiSearchStatus');
+                const clearBtn = document.getElementById('aiClearBtn');
+                const searchBtn = document.getElementById('aiSearchBtn');
+
+                status.textContent = 'Querying Holonet AI...';
+                status.classList.remove('d-none');
+                searchBtn.disabled = true;
+
+                try {
+                    const res = await fetch(`/Starship/AiSearch?query=${encodeURIComponent(query)}`);
+                    const ships = await res.json();
+
+                    table.clear();
+                    ships.forEach(s => {
+                        table.row.add([
+                            `<span class="fw-bold">${s.name}</span>`,
+                            s.model,
+                            `<span class="text-capitalize">${s.starshipClass}</span>`,
+                            s.costInCredits,
+                            s.crew,
+                            s.hyperdriveRating,
+                            s.created,
+                            actionButtons(s.id, s.name)
+                        ]);
+                    });
+                    table.draw();
+
+                    status.textContent = `${ships.length} result(s) returned by AI.`;
+                    clearBtn.classList.remove('d-none');
+                } catch {
+                    status.textContent = 'AI search failed. Try again.';
+                    status.classList.replace('text-info', 'text-danger');
+                } finally {
+                    searchBtn.disabled = false;
+                }
+            }
+
+            document.getElementById('aiSearchBtn').addEventListener('click', runAiSearch);
+            document.getElementById('aiSearchInput').addEventListener('keydown', e => { if (e.key === 'Enter') runAiSearch(); });
+
+            document.getElementById('aiClearBtn').addEventListener('click', function () {
+                document.getElementById('aiSearchInput').value = '';
+                document.getElementById('aiSearchStatus').classList.add('d-none');
+                this.classList.add('d-none');
+                location.reload();
+            });
+        });
+
+        function populateDeleteModal(id, name) {
+            document.getElementById('delete-id').value = id;
+            document.getElementById('delete-name').innerText = name;
+        }
+
+        function showLoader() {
+            document.getElementById('holonet-loader').classList.remove('d-none');
+        }
+    </script>
+}

@@ -1,0 +1,344 @@
+﻿@using Microsoft.EntityFrameworkCore
+@using StarshipRegistry.Helpers
+@inject DetailsHelper DetailsHelper
+
+@model StarshipRegistry.Models.ViewModels.StarshipDetailsViewModel
+
+@{
+    string mode = ViewData["PageMode"]?.ToString() ?? "Details";
+    bool isEditMode = mode == "Edit" || mode == "Create";
+    bool isCreateMode = mode == "Create";
+
+    ViewData["Title"] = isCreateMode ? "Register New Asset" : $"Asset Profile - {Model.Starship.Name}";
+}
+
+<div class="container-fluid mt-4 pb-5">
+    <div class="mb-4">
+        @{
+            string returnUrl = ViewData["ReturnUrl"]?.ToString() ?? "";
+            string backUrl = !string.IsNullOrEmpty(returnUrl) ? returnUrl : "javascript:history.back()";
+        }
+        <a href="@backUrl" class="btn btn-outline-secondary btn-sm" onclick="if(this.href === 'javascript:history.back()' && window.history.length <= 1) { window.location.href='/'; return false; }">
+            <i class="bi bi-arrow-left me-1"></i> Back
+        </a>
+    </div>
+
+    <form asp-action="@(isCreateMode ? "Create" : "Edit")" method="post">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <span class="text-uppercase text-info font-monospace small">Holonet Registry Asset</span>
+
+                @if (isEditMode)
+                {
+                    <input type="text" name="Name" class="form-control form-control-lg bg-dark text-warning border-info fs-3 mt-1" value="@Model.Starship.Name" required placeholder="Enter Ship Name..." />
+                }
+                else
+                {
+                    <h1 class="display-5 text-warning">@Model.Starship.Name</h1>
+                }
+            </div>
+
+            <div class="d-flex align-items-center gap-2">
+                @{
+                    string returnUrl = ViewData["ReturnUrl"]?.ToString() ?? "";
+                }
+                @if (isEditMode)
+                {
+                    <button type="submit" class="btn btn-outline-success">
+                        <i class="bi bi-check-lg me-1"></i> Save Changes
+                    </button>
+                    @if (!isCreateMode)
+                    {
+                        <a href="@(!string.IsNullOrEmpty(returnUrl) ? returnUrl : Url.Action("Details", "Starship", new { id = Model.Starship.Url?.TrimEnd('/').Split('/').Last() }))" class="btn btn-outline-secondary">Cancel</a>
+                    }
+                }
+                else
+                {
+                    <a asp-action="Details" asp-route-id="@Model.Starship.Url?.TrimEnd('/').Split('/').Last()" asp-route-edit="true" class="btn btn-outline-info">
+                        <i class="bi bi-pencil me-1"></i> Edit Asset
+                    </a>
+                    <button class="btn btn-outline-danger"
+                            data-ship-id="@Model.Starship.Url?.TrimEnd('/').Split('/').Last()"
+                            data-ship-name="@Model.Starship.Name"
+                            data-bs-toggle="modal" data-bs-target="#deleteModal">
+                        <i class="bi bi-trash me-1"></i> Delete
+                    </button>
+                }
+
+                <div class="badge bg-dark border border-info p-3">
+                    <span class="text-white-50">Archive Segment:</span>
+                    <span class="text-info fw-bold">#@(Model.Starship.Url?.TrimEnd('/').Split('/').Last() ?? "N/A")</span>
+                </div>
+            </div>
+        </div>
+
+        @if (!isCreateMode)
+        {
+            <input type="hidden" name="Url" value="@Model.Starship.Url" />
+        }
+        <input type="hidden" name="returnUrl" value="@(ViewData["ReturnUrl"]?.ToString() ?? "")" />
+
+        <div class="row">
+            <div class="col-lg-8">
+                <div class="card bg-dark text-white border-secondary mb-4 shadow">
+                    <div class="card-header border-secondary bg-black">
+                        <h5 class="mb-0 text-info font-monospace"><i class="bi bi-cpu me-2"></i>Core Specifications</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <p class="text-white-50 mb-1">Model</p>
+                                @if (isEditMode)
+                                {
+                                    <input type="text" name="Model" class="form-control bg-dark text-white border-secondary" value="@Model.Starship.Model" required />
+                                }
+                                else
+                                {
+                                    <p class="fs-5">@Model.Starship.Model</p>
+                                }
+                            </div>
+                            <div class="col-md-6">
+                                <p class="text-white-50 mb-1">Class</p>
+                                @if (isEditMode)
+                                {
+                                    <input type="text" name="StarshipClass" class="form-control bg-dark text-white border-secondary" value="@Model.Starship.StarshipClass" />
+                                }
+                                else
+                                {
+                                    <p class="fs-5 text-capitalize">@Model.Starship.StarshipClass</p>
+                                }
+                            </div>
+                            <div class="col-md-6">
+                                <p class="text-white-50 mb-1">Manufacturer</p>
+                                @if (isEditMode)
+                                {
+                                    <input type="text" name="Manufacturer" class="form-control bg-dark text-white border-secondary" value="@Model.Starship.Manufacturer" />
+                                }
+                                else
+                                {
+                                    <p class="fs-5">@Model.Starship.Manufacturer</p>
+                                }
+                            </div>
+                            <div class="col-md-6">
+                                <p class="text-white-50 mb-1">Cost</p>
+                                @if (isEditMode)
+                                {
+                                    <input type="text" name="CostInCredits" class="form-control bg-dark text-warning border-secondary" value="@Model.Starship.CostInCredits" placeholder="Credits..." />
+                                }
+                                else
+                                {
+                                    <p class="fs-5 text-warning">
+                                        @(string.IsNullOrEmpty(Model.Starship.CostInCredits) ? "N/A" : Model.Starship.CostInCredits + " credits")
+                                    </p>
+                                }
+                            </div>
+                            <div class="col-md-4">
+                                <p class="text-white-50 mb-1">Crew Capacity</p>
+                                @if (isEditMode)
+                                {
+                                    <input type="text" name="Crew" class="form-control bg-dark text-white border-secondary" value="@Model.Starship.Crew" />
+                                }
+                                else
+                                {
+                                    <p class="fs-5">@(string.IsNullOrEmpty(Model.Starship.Crew) ? "N/A" : Model.Starship.Crew)</p>
+                                }
+                            </div>
+                            <div class="col-md-4">
+                                <p class="text-white-50 mb-1">Hyperdrive Rating</p>
+                                @if (isEditMode)
+                                {
+                                    <input type="text" name="HyperdriveRating" class="form-control bg-dark text-white border-secondary" value="@Model.Starship.HyperdriveRating" />
+                                }
+                                else
+                                {
+                                    <p class="fs-5">@(string.IsNullOrEmpty(Model.Starship.HyperdriveRating) ? "N/A" : Model.Starship.HyperdriveRating)</p>
+                                }
+                            </div>
+                            <div class="col-md-4">
+                                <p class="text-white-50 mb-1">Registry Created</p>
+                                <p class="fs-5">@(Model.Starship.Created.HasValue? Model.Starship.Created.Value.ToString("yyyy-MM-dd") : "N/A")</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card bg-dark text-white border-secondary mb-4">
+                    <div class="card-header border-secondary bg-black">
+                        <h5 class="mb-0 text-info font-monospace"><i class="bi bi-hdd-network me-2"></i>Extended Telemetry</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <p class="text-white-50 mb-1">Max Speed</p>
+                                @if (isEditMode)
+                                {
+                                    <input type="text" name="MaxAtmospheringSpeed" class="form-control bg-dark text-white border-secondary" value="@Model.Starship.MaxAtmospheringSpeed" />
+                                }
+                                else
+                                {
+                                    <p class="fs-6">@(!string.IsNullOrEmpty(Model.Starship.MaxAtmospheringSpeed) ? Model.Starship.MaxAtmospheringSpeed : "N/A")</p>
+                                }
+                            </div>
+                            <div class="col-md-4">
+                                <p class="text-white-50 mb-1">Cargo Space</p>
+                                @if (isEditMode)
+                                {
+                                    <input type="text" name="CargoCapacity" class="form-control bg-dark text-white border-secondary" value="@Model.Starship.CargoCapacity" />
+                                }
+                                else
+                                {
+                                    <p class="fs-6">@(!string.IsNullOrEmpty(Model.Starship.CargoCapacity) ? Model.Starship.CargoCapacity : "N/A")</p>
+                                }
+                            </div>
+                            <div class="col-md-4">
+                                <p class="text-white-50 mb-1">Consumables</p>
+                                @if (isEditMode)
+                                {
+                                    <input type="text" name="Consumables" class="form-control bg-dark text-white border-secondary" value="@Model.Starship.Consumables" />
+                                }
+                                else
+                                {
+                                    <p class="fs-6">@(!string.IsNullOrEmpty(Model.Starship.Consumables) ? Model.Starship.Consumables : "N/A")</p>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-4">
+                <div class="card bg-dark text-white border-info shadow mb-4">
+                    <div class="card-header border-info bg-black">
+                        <h5 class="mb-0 text-warning font-monospace"><i class="bi bi-film me-2"></i>Manifested Films</h5>
+                    </div>
+                    <div class="card-body">
+                        @if (isEditMode)
+                        {
+                            <div class="film-selector">
+                                @{
+                                    var availableFilms = ViewData["AvailableFilms"] as List<StarshipRegistry.Models.Film> ?? new();
+                                }
+                                @if (availableFilms.Any())
+                                {
+                                    <div class="list-group list-group-flush bg-dark">
+                                        @foreach (var film in availableFilms.OrderByDescending(f => Model.Starship.Films?.Contains(f.Url) ?? false))
+                                        {
+                                            bool isSelected = Model.Starship.Films?.Contains(film.Url) ?? false;
+                                            <label class="list-group-item bg-dark text-white border-secondary d-flex align-items-center gap-2 cursor-pointer">
+                                                <input type="checkbox" name="selectedFilms" value="@film.Url" @(isSelected ? "checked" : "") class="form-check-input" />
+                                                <span class="flex-grow-1">🎬 @film.Title</span>
+                                            </label>
+                                        }
+                                    </div>
+                                }
+                                else
+                                {
+                                    <p class="text-muted">No films available in the database</p>
+                                }
+                            </div>
+                        }
+                        else if (Model.Starship.Films != null && Model.Starship.Films.Any())
+                        {
+                            <div class="list-group list-group-flush bg-dark">
+                                @foreach (var url in Model.Starship.Films)
+                                {
+                                    var id = url.TrimEnd('/').Split('/').Last();
+                                    var filmTitle = Model.FilmNames.TryGetValue(url, out var title) ? title : "Unknown Film";
+                                    <a asp-controller="Film" asp-action="Details" asp-route-id="@id" class="list-group-item list-group-item-action bg-dark text-white border-secondary d-flex justify-content-between align-items-center">
+                                        <span>🎬 @filmTitle</span>
+                                        <i class="bi bi-box-arrow-up-right text-info small"></i>
+                                    </a>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <p class="text-muted text-center py-3">No active film logs found.</p>
+                        }
+                    </div>
+                </div>
+
+                <div class="card bg-dark text-white border-info shadow">
+                    <div class="card-header border-info bg-black">
+                        <h5 class="mb-0 text-warning font-monospace"><i class="bi bi-people me-2"></i>Known Pilots</h5>
+                    </div>
+                    <div class="card-body">
+                        @if (isEditMode)
+                        {
+                            <div class="pilot-selector">
+                                @{
+                                    var availableCharacters = ViewData["AvailableCharacters"] as List<StarshipRegistry.Models.Character> ?? new();
+                                }
+                                @if (availableCharacters.Any())
+                                {
+                                    <div class="list-group list-group-flush bg-dark" style="max-height: 300px; overflow-y: auto;">
+                                        @foreach (var character in availableCharacters.OrderByDescending(c => Model.Starship.Pilots?.Contains(c.Url) ?? false))
+                                        {
+                                            bool isSelected = Model.Starship.Pilots?.Contains(character.Url) ?? false;
+                                            <label class="list-group-item bg-dark text-white border-secondary d-flex align-items-center gap-2 cursor-pointer">
+                                                <input type="checkbox" name="selectedPilots" value="@character.Url" @(isSelected ? "checked" : "") class="form-check-input" />
+                                                <span class="flex-grow-1">👤 @character.Name</span>
+                                            </label>
+                                        }
+                                    </div>
+                                }
+                                else
+                                {
+                                    <p class="text-muted">No characters available in the database</p>
+                                }
+                            </div>
+                        }
+                        else if (Model.Starship.Pilots != null && Model.Starship.Pilots.Any())
+                        {
+                            <div class="list-group list-group-flush bg-dark">
+                                @foreach (var url in Model.Starship.Pilots)
+                                {
+                                    var id = url.TrimEnd('/').Split('/').Last();
+                                    var characterName = Model.PilotNames.TryGetValue(url, out var name) ? name : "Unknown Pilot";
+                                    <a asp-controller="People" asp-action="Details" asp-route-id="@id" class="list-group-item list-group-item-action bg-dark text-white border-secondary d-flex justify-content-between align-items-center">
+                                        <span>👤 @characterName</span>
+                                        <i class="bi bi-box-arrow-up-right text-info small"></i>
+                                    </a>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <p class="text-muted text-center py-3">No registered pilots found.</p>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-white border border-danger">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title text-danger">⚠️ Decertify Asset</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form asp-action="Delete" method="post">
+                <div class="modal-body">
+                    <input type="hidden" name="id" id="delete-id" />
+                    <p>Are you certain you want to remove <span id="delete-name" class="fw-bold text-warning"></span> from the Imperial registry? This cannot be undone.</p>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-outline-danger">Confirm Deletion</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.getElementById('deleteModal').addEventListener('show.bs.modal', function (e) {
+            document.getElementById('delete-id').value = e.relatedTarget.dataset.shipId;
+            document.getElementById('delete-name').innerText = e.relatedTarget.dataset.shipName;
+        });
+    </script>
+}

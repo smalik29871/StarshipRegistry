@@ -1,0 +1,79 @@
+﻿/* Star Wars Galactic UI Theme */
+
+/* Import standard Google Fonts that look sci-fi */
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Share+Tech+Mono&display=swap');
+
+:root {
+    --sw-bg: #0b0c10; /* Deep space black */
+    --sw-card-bg: #1f2833; /* Sleek metal gray */
+    --sw-yellow: #ffe300; /* Classic crawl yellow */
+    --sw-glow: rgba(255, 227, 0, 0.4);
+    --sw-text: #c5c6c7; /* Off-white text */
+}
+
+body {
+    background-color: var(--sw-bg);
+    color: var(--sw-text);
+    font-family: 'Share Tech Mono', monospace;
+}
+
+/* Sci-fi Title Fonts */
+h1, h2, h3, h4, .navbar-brand {
+    font-family: 'Orbitron', sans-serif !important;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+/* Glowing text for headers */
+.display-5, .display-4 {
+    color: var(--sw-yellow);
+    text-shadow: 0 0 10px var(--sw-glow);
+}
+
+/* Card overrides to look like terminal screens */
+.card {
+    background-color: var(--sw-card-bg) !important;
+    border: 1px solid #45f3ff !important; /* Hologram blue border */
+    border-radius: 0; /* Square edges look more industrial */
+}
+
+/* --- Table Styles --- */
+
+.table {
+    color: var(--sw-text) !important;
+}
+
+    /* High-contrast header cells */
+    .table thead th {
+        background-color: #1a2238 !important; /* Deep imperial blue */
+        color: #ffe300 !important; /* High-contrast SW yellow */
+        font-family: 'Orbitron', sans-serif !important;
+        letter-spacing: 1px;
+        border-bottom: 2px solid #45f3ff !important; /* Hologram blue underline */
+    }
+
+    /* Forces the body cells to have a nice contrast too */
+    .table tbody td {
+        background-color: #1f2833 !important;
+        color: #c5c6c7 !important;
+        border-bottom: 1px solid rgba(69, 243, 255, 0.2) !important;
+    }
+
+/* Hover state for rows */
+.table-hover tbody tr:hover td {
+    background-color: rgba(69, 243, 255, 0.1) !important;
+    color: #ffffff !important;
+}
+
+/* --- Buttons --- */
+
+.btn-outline-primary {
+    color: var(--sw-yellow) !important;
+    border-color: var(--sw-yellow) !important;
+}
+
+.btn-outline-primary:hover {
+    background-color: var(--sw-yellow) !important;
+    color: #000 !important;
+    box-shadow: 0 0 15px var(--sw-glow);
+}
