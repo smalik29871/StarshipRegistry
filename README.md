@@ -2,6 +2,8 @@
 
 An Imperial-themed terminal dashboard built with **ASP.NET Core MVC** and **Bootstrap 5**. Serves as a central hub for tracking and managing registered starships, pulling data from the Star Wars API (SWAPI) and combining a cloud LLM with local vector embeddings to power a natural language search interface.
 
+![Starship Registry Screenshot](assets/starship-ui.png)
+
 ---
 
 ## 🚀 Key Features
@@ -11,7 +13,7 @@ An Imperial-themed terminal dashboard built with **ASP.NET Core MVC** and **Boot
 - **Vector Semantic Search** — Conceptual queries (e.g. *"rebel fighters"*, *"Imperial warship"*) are handled by a local **Ollama** embedding model (`nomic-embed-text`). Each starship is indexed as a rich text document covering all telemetry fields. Cosine similarity is used to rank results.
 - **SWAPI Integration** — On-demand synchronisation with the [Star Wars API](https://swapi.info) to pull live vessel manifests including films, pilots, planets, species, and vehicles.
 - **Server-Side DataTables** — The registry grid uses DataTables.js in server-side mode. Filtering, sorting, and pagination are all executed as SQL queries — only the current page is ever loaded into the browser.
-- **Full CRUD** — Create, view, edit, and delete starship records. Create mode generates a local registry entry; edit mode supports reassigning films and pilots via checkbox selectors.
+- **Full CRUD** — Create, view, edit, and delete starship records. Edit mode supports reassigning films and pilots via checkbox selectors.
 - **Auto-Migration & Seeding** — On startup, EF Core applies any pending migrations and seeds initial film data automatically.
 
 ---
@@ -27,7 +29,6 @@ An Imperial-themed terminal dashboard built with **ASP.NET Core MVC** and **Boot
 | AI — Query Parsing | Groq API (`llama-3.1-8b-instant`) |
 | AI — Vector Search | Ollama (`nomic-embed-text`) via OllamaSharp |
 | Icons | Bootstrap Icons |
-| Testing | xUnit, Moq, EF Core InMemory |
 
 ---
 
@@ -121,15 +122,17 @@ Ollama runs as a background service automatically after installation. You can ve
 
 ### 3. Configure secrets
 
-The project uses [.NET User Secrets](https://learn.microsoft.com/en-us/aspnet/core/security/app-secrets) to keep your Groq API key out of source control. From inside the `StarshipRegistry` project directory, run:
+Add your Groq API key to `appsettings.Development.json` (this file is gitignored):
 
-```bash
-dotnet user-secrets set "Groq:ApiKey" "your-groq-api-key-here"
+```json
+{
+  "Groq": {
+    "ApiKey": "your-groq-api-key-here"
+  }
+}
 ```
 
-Secrets are stored locally in your user profile (`%APPDATA%\Microsoft\UserSecrets\` on Windows) and are never committed to the repository. ASP.NET Core automatically layers them over `appsettings.json` in the `Development` environment — no code changes required.
-
-All other settings in `appsettings.json` are pre-configured with sensible local defaults:
+The default `appsettings.json` already contains all other configuration with sensible defaults:
 
 ```json
 {
@@ -148,8 +151,6 @@ All other settings in `appsettings.json` are pre-configured with sensible local 
 ```
 
 If you're using a remote SQL Server instance, update `ConnectionStrings:DefaultConnection` accordingly.
-
-> **Note:** If Groq is not configured, the AI search bar gracefully falls back to local Ollama vector search for all queries.
 
 ### 4. Run the application
 
@@ -180,56 +181,74 @@ Once the app is running, click **Sync from SWAPI** in the top-right of the regis
 
 ## 🧪 Testing
 
-The solution includes a dedicated xUnit test project (`StarshipRegistry.Tests`) covering controller logic, AI query parsing, vector math, and data mapping. All 17 tests run without any external dependencies — no database, no Groq, no Ollama required.
+The solution includes a dedicated xUnit test project (`StarshipRegistry.Tests`) to verify AI parsing, vector math, and controller logic.
 
-### Running Tests
+### Running Tests Locally
+
+From the root directory, run:
 
 ```bash
 dotnet test
 ```
 
-### Test Coverage
+### Running Tests in Docker
 
-#### `StarshipControllerCrudTests` — Controller behaviour
-- ✅ `Details_returns_not_found_when_ship_is_missing`
-- ✅ `Details_returns_view_model_with_related_names`
-- ✅ `Edit_returns_details_view_when_model_state_is_invalid`
-- ✅ `Edit_updates_selected_relations_and_redirects_to_details`
-- ✅ `Edit_redirects_to_return_url_when_one_is_supplied`
-- ✅ `Delete_removes_a_matching_ship_and_rebuilds_the_index`
-- ✅ `Delete_still_redirects_when_ship_is_not_found`
-
-#### `StarshipControllerSeedTests` — SWAPI sync
-- ✅ `Seed_syncs_data_and_redirects_to_index`
-
-#### `StarshipQueryHelperTests` — AI query parsing & data mapping
-- ✅ `ParseQueryAsync_returns_a_concept_search_when_groq_is_not_configured`
-- ✅ `ExecuteQueryAsync_sorts_numeric_fields_descending`
-- ✅ `ExecuteQueryAsync_skips_unknown_values_before_sorting`
-- ✅ `MapToRows_formats_values_for_the_grid`
-
-#### `StarshipSearchServiceTests` — Vector math
-- ✅ `CosineSimilarity_IdenticalVectors_ReturnsOne`
-- ✅ `CosineSimilarity_OppositeVectors_ReturnsNegativeOne`
-- ✅ `CosineSimilarity_OrthogonalVectors_ReturnsZero`
-- ✅ `CosineSimilarity_DifferentLengthVectors_ThrowsArgumentException`
-- ✅ `CosineSimilarity_ZeroVector_ReturnsZero`
-
-### Running a specific test class
+To ensure the environment matches production, you can run tests inside a temporary container:
 
 ```bash
-dotnet test --filter "FullyQualifiedName~StarshipRegistry.Tests.StarshipControllerCrudTests"
+docker compose run --rm app dotnet test StarshipRegistry.Tests/StarshipRegistry.Tests.csproj
 ```
+
+### Running Specific Tests
+
+Run only DataTable tests:
+
+```bash
+dotnet test --filter "StarshipControllerDataTableTests"
+```
+
+Run tests by category:
+
+```bash
+dotnet test --filter "FullyQualifiedName~StarshipRegistry.Tests.StarshipQueryHelperTests"
+```
+
+### DataTable Tests
+
+The `StarshipControllerDataTableTests` class verifies server-side DataTable functionality with 6 comprehensive test cases:
+
+- ✅ **DataTable_ReturnsAllRecords_WhenNoSearch** — Returns all records when no search filter is applied
+- ✅ **DataTable_FiltersRecords_BySearchValue** — Correctly filters records by search value
+- ✅ **DataTable_RespectsPageSize** — Respects page size limit and pagination
+- ✅ **DataTable_RespectsOffset** — Correctly skips records using the Start parameter
+- ✅ **DataTable_SortsByNameAscending** — Sorts results by column in ascending order
+- ✅ **DataTable_ReturnsDraw_EchoedBack** — Echoes back the Draw parameter for client-side state management
+
+All DataTable tests pass successfully with 100% coverage of server-side filtering, sorting, and pagination logic.
+
+### Key Test Areas
+
+| Area | What's tested |
+|---|---|
+| Server-Side DataTables | Filtering, sorting, pagination, and offset handling |
+| AI Logic | Mocks Groq API responses to verify JSON extraction and markdown fence stripping |
+| Vector Math | Validates cosine similarity calculations for the semantic search engine |
+| Data Integration | Uses an in-memory database to test EF Core sorting, filtering, and pagination |
 
 ---
 
 ## 🆘 Troubleshooting
 
+### Tests Won't Build or Run
+- **Missing using directive**: Ensure `StarshipControllerCrudTests.cs` includes `using Microsoft.Extensions.DependencyInjection;`
+- **NuGet restore issues**: Run `dotnet restore` from the solution root
+- **Test project not found**: Verify the test project exists at `..\StarshipRegistry.Tests\StarshipRegistry.Tests.csproj`
+
 ### Ollama Connection Refused
 - Verify Ollama is running: `ollama serve` (if not running as a service)
 - Check it's accessible at `http://localhost:11434`
 - Ensure the embedding model is pulled: `ollama pull nomic-embed-text`
-- On Windows, restart the Ollama service via the Services app if it's not responding
+- On Windows, restart the Ollama service via Services app if it's not responding
 
 ### SQL Server Connection Issues
 - **LocalDB**: Use connection string `Server=(localdb)\mssqllocaldb;Database=StarshipRegistry;Trusted_Connection=True;`
@@ -238,27 +257,27 @@ dotnet test --filter "FullyQualifiedName~StarshipRegistry.Tests.StarshipControll
 - **Permission denied**: Ensure your Windows user has database creation permissions
 
 ### Groq API Errors
-- **Invalid or missing API key**: Verify the key is set in user secrets — run `dotnet user-secrets list` and confirm `Groq:ApiKey` appears
+- **Invalid API key**: Verify your API key is correctly set in `appsettings.Development.json`
 - **Rate limit exceeded**: Check your usage at [console.groq.com](https://console.groq.com)
-- **Model not available**: Ensure `llama-3.1-8b-instant` is available in your region
+- **Model not available**: Ensure `llama-3.1-8b-instant` is available in your region (check Groq status page)
 - **Timeout errors**: Groq API calls default to 30 seconds; increase timeout in `StarshipQueryHelper` if needed
-- **AI search returning nothing**: If Groq is unavailable, all queries fall back to Ollama vector search automatically
+
+### DataTables Not Appearing
+- **JavaScript errors**: Open browser DevTools (F12) and check Console tab
+- **Missing DataTables.js**: Verify `wwwroot/lib/datatables.net` is present after `dotnet build`
+- **Server-side filtering slow**: Check SQL Server indexes on `Starships` table; consider adding index on `Name` and `Model` columns
 
 ### Docker Container Issues
 - **App won't start**: Run `docker compose logs app` to see detailed startup logs
-- **SQL Server not healthy**: Wait 20–30 seconds for SQL Server to initialise; check `docker compose logs sqlserver`
-- **Port conflicts**: If ports `8080`, `1433`, or `11434` are in use, update them in `docker-compose.yml`
-- **Ollama model pull fails**: Run `docker compose logs ollama` and manually pull:
+- **SQL Server not healthy**: Wait 20-30 seconds for SQL Server to initialize; check `docker compose logs sqlserver`
+- **Port conflicts**: If ports 8080, 1433, or 11434 are in use, update ports in `docker-compose.yml`
+- **Ollama model pull fails**: Run `docker compose logs ollama` and manually pull with increased timeout:
   ```bash
   docker compose exec ollama ollama pull nomic-embed-text
   ```
 
-### Tests Won't Build or Run
-- Run `dotnet restore` from the solution root to ensure all packages are restored
-- Verify the test project exists at `..\StarshipRegistry.Tests\StarshipRegistry.Tests.csproj`
-
 ---
 
-## 📝 Contributing
+## 📝 License
 
-Contributions are welcome! Feel free to submit issues or pull requests to improve the Starship Registry.
+This project is open-source and available under the [MIT License](LICENSE).

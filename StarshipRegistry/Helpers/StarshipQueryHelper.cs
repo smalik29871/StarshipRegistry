@@ -1,11 +1,11 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using StarshipRegistry.Data;
 using StarshipRegistry.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Linq.Expressions;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
@@ -21,16 +21,7 @@ namespace StarshipRegistry.Helpers
         private readonly string _model;
         private readonly string _groqUrl;
         private readonly ApplicationDbContext _context;
-
-        // Use a dictionary to map the SortKey to the specific property on the Starship entity
-        private static readonly Dictionary<string, Expression<Func<Starship, string?>>> SortMappers = new()
-        {
-            { "cost", s => s.CostInCredits },
-            { "crew", s => s.Crew },
-            { "hyperdrive", s => s.HyperdriveRating },
-            { "length", s => s.Length },
-            { "cargo", s => s.CargoCapacity }
-        };
+        private readonly ILogger<StarshipQueryHelper> _logger;
 
         private const string SystemPrompt = @"You are a query parser for a Star Wars starship database.
 Convert the user's natural language query into a JSON object with these fields:
@@ -43,30 +34,33 @@ Important Star Wars context:
 - Hyperdrive rating: LOWER number = FASTER (so 'fastest hyperdrive' = asc, 'slowest' = desc)
 - Cost, crew, length, cargo: higher number = more
 
-Respond ONLY with raw JSON, no markdown, no explanation.
-Example: {""SortBy"": ""crew"", ""Order"": ""desc"", ""Take"": 10, ""Concept"": """"}";
+Respond ONLY with raw JSON, no markdown, no explanation.";
 
-        public StarshipQueryHelper(IHttpClientFactory httpClientFactory, IConfiguration config, ApplicationDbContext context)
+        public StarshipQueryHelper(
+            IHttpClientFactory httpClientFactory,
+            IConfiguration config,
+            ApplicationDbContext context,
+            ILogger<StarshipQueryHelper> logger)
         {
             _http = httpClientFactory.CreateClient();
-            _apiKey = config["Groq:ApiKey"] ?? throw new InvalidOperationException("Groq:ApiKey is not configured.");
+            _apiKey = config["Groq:ApiKey"] ?? string.Empty;
             _model = config["Groq:Model"] ?? "llama-3.1-8b-instant";
-            _groqUrl = config["Groq:BaseUrl"] ?? throw new InvalidOperationException("Groq:BaseUrl is not configured.");
+            _groqUrl = config["Groq:BaseUrl"] ?? string.Empty;
             _context = context;
+            _logger = logger;
         }
 
         public async Task<SearchCommand> ParseQueryAsync(string userQuery)
         {
+            if (string.IsNullOrWhiteSpace(_apiKey) || string.IsNullOrWhiteSpace(_groqUrl))
+                return new SearchCommand { Concept = userQuery };
+
             try
             {
                 var payload = new
                 {
                     model = _model,
-                    messages = new[]
-                    {
-                        new { role = "system", content = SystemPrompt },
-                        new { role = "user", content = userQuery }
-                    },
+                    messages = new[] { new { role = "system", content = SystemPrompt }, new { role = "user", content = userQuery } },
                     temperature = 0,
                     max_tokens = 100
                 };
@@ -78,74 +72,86 @@ Example: {""SortBy"": ""crew"", ""Order"": ""desc"", ""Take"": 10, ""Concept"": 
                 request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
 
                 var response = await _http.SendAsync(request);
+                if (!response.IsSuccessStatusCode) return new SearchCommand { Concept = userQuery };
+
                 var json = await response.Content.ReadAsStringAsync();
-
                 using var doc = JsonDocument.Parse(json);
-                var content = doc.RootElement
-                    .GetProperty("choices")[0]
-                    .GetProperty("message")
-                    .GetProperty("content")
-                    .GetString() ?? "";
+                var content = doc.RootElement.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString() ?? "";
 
+                // Pull out the pure JSON block securely
                 int start = content.IndexOf('{');
                 int end = content.LastIndexOf('}');
                 if (start >= 0 && end > start)
                     content = content.Substring(start, end - start + 1);
 
-                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-                return JsonSerializer.Deserialize<SearchCommand>(content, options)
+                return JsonSerializer.Deserialize<SearchCommand>(content, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
                     ?? new SearchCommand { Concept = userQuery };
             }
-            catch
+            catch (Exception ex)
             {
+                _logger.LogWarning(ex, "Failed to parse query via Groq API. Defaulting to standard concept search.");
                 return new SearchCommand { Concept = userQuery };
             }
         }
 
-        public async Task<List<Starship>> ExecuteSortQueryAsync(SearchCommand command)
+        public async Task<List<Starship>> ExecuteQueryAsync(SearchCommand command)
         {
-            // 1. Guard clause
-            if (string.IsNullOrEmpty(command.SortBy) || !SortMappers.ContainsKey(command.SortBy))
-                return new List<Starship>();
+            // 1. Start with the database queryable
+            var query = _context.Starships.AsQueryable();
 
-            var propertySelector = SortMappers[command.SortBy];
-            var isDescending = command.Order == "desc";
+            // 2. Narrow down records at the DB level by removing nulls/unknowns for the sorted column
+            query = command.SortBy switch
+            {
+                "cost" => query.Where(s => s.CostInCredits != null && s.CostInCredits != "unknown"),
+                "crew" => query.Where(s => s.Crew != null && s.Crew != "unknown"),
+                "hyperdrive" => query.Where(s => s.HyperdriveRating != null && s.HyperdriveRating != "unknown"),
+                "length" => query.Where(s => s.Length != null && s.Length != "unknown"),
+                "cargo" => query.Where(s => s.CargoCapacity != null && s.CargoCapacity != "unknown"),
+                _ => query
+            };
 
-            // 2. Fetch data from DB. 
-            // Because SWAPI uses strings for numeric fields (e.g., "1000" or "unknown"), 
-            // we pull them into memory so we can safely parse them as numbers without blowing up EF Core.
-            var rawShips = await _context.Starships.ToListAsync();
+            // 3. APPLY SAFE UPPER LIMIT
+            // If the database scales to 1,000,000 ships, this keeps the app from crashing.
+            const int maxMemorySafeCap = 1000;
 
-            // 3. Compile the selector into a delegate so we can invoke it in memory
-            var compiledSelector = propertySelector.Compile();
+            var filteredShips = await query
+                .Take(maxMemorySafeCap)
+                .ToListAsync(); // Database execution ends here
 
-            var query = rawShips
-                .Where(s => {
-                    var val = compiledSelector(s);
-                    return !string.IsNullOrEmpty(val) && val != "unknown";
-                })
-                .OrderBy(s => {
-                    var val = compiledSelector(s);
-                    return double.TryParse(val, out var num) ? num : 0;
-                });
+            // 4. Map the sort target to a local property selector
+            Func<Starship, string?> selector = command.SortBy switch
+            {
+                "cost" => s => s.CostInCredits,
+                "crew" => s => s.Crew,
+                "hyperdrive" => s => s.HyperdriveRating,
+                "length" => s => s.Length,
+                "cargo" => s => s.CargoCapacity,
+                _ => s => s.Name
+            };
 
-            // Apply descending if necessary
-            var finalQuery = isDescending ? query.Reverse() : query;
+            // 5. Safely perform numeric sorting on strings in-memory on the restricted set
+            var sorted = filteredShips
+                .OrderBy(s => double.TryParse(selector(s), out var num) ? num : 0);
 
+            var finalQuery = command.Order == "desc" ? sorted.Reverse() : sorted;
+
+            // 6. Take the requested amount requested by the AI/user
             return finalQuery.Take(command.Take).ToList();
         }
 
-        public List<object> MapToRows(List<Starship> ships) =>
-            ships.Select(s => (object)new
+        public List<object> MapToRows(List<Starship> ships)
+        {
+            return ships.Select(s => (object)new
             {
                 id = s.Url.TrimEnd('/').Split('/').Last(),
                 name = s.Name,
                 model = s.Model,
                 starshipClass = s.StarshipClass,
-                costInCredits = string.IsNullOrEmpty(s.CostInCredits) ? "N/A" : s.CostInCredits,
-                crew = string.IsNullOrEmpty(s.Crew) ? "N/A" : s.Crew,
-                hyperdriveRating = string.IsNullOrEmpty(s.HyperdriveRating) ? "N/A" : s.HyperdriveRating,
-                created = s.Created.HasValue ? s.Created.Value.ToString("yyyy-MM-dd") : "N/A"
+                costInCredits = s.CostInCredits ?? "N/A",
+                crew = s.Crew ?? "N/A",
+                hyperdriveRating = s.HyperdriveRating ?? "N/A",
+                created = s.Created?.ToString("yyyy-MM-dd") ?? "N/A"
             }).ToList();
+        }
     }
 }

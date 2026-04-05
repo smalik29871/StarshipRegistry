@@ -16,7 +16,8 @@ namespace StarshipRegistry.Services
     {
         private readonly IServiceScopeFactory _scopeFactory;
         private readonly IEmbeddingGenerator<string, Embedding<float>> _embeddingGenerator;
-        private List<(Starship Ship, ReadOnlyMemory<float> Vector)>? _cachedEmbeddings;
+        private volatile List<(Starship Ship, ReadOnlyMemory<float> Vector)>? _cachedEmbeddings;
+        private readonly SemaphoreSlim _buildLock = new SemaphoreSlim(1, 1);
 
         public StarshipSearchService(IServiceScopeFactory scopeFactory, IConfiguration config)
         {
@@ -26,39 +27,52 @@ namespace StarshipRegistry.Services
             _embeddingGenerator = new OllamaApiClient(new Uri(ollamaUrl), embeddingModel);
         }
 
-        public async Task BuildIndexAsync()
+        public virtual async Task BuildIndexAsync()
         {
-            using (var scope = _scopeFactory.CreateScope())
+            await _buildLock.WaitAsync();
+            try
             {
-                var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                var starships = await context.Starships.ToListAsync();
-
-                _cachedEmbeddings = new List<(Starship, ReadOnlyMemory<float>)>();
-
-                foreach (var ship in starships)
+                using (var scope = _scopeFactory.CreateScope())
                 {
-                    string searchText = $"search_document: {ship.Name} {ship.Model} {ship.Manufacturer} " +
-                        $"class {ship.StarshipClass} hyperdrive {ship.HyperdriveRating} " +
-                        $"crew {ship.Crew} passengers {ship.Passengers} " +
-                        $"length {ship.Length} speed {ship.MaxAtmospheringSpeed} " +
-                        $"cargo {ship.CargoCapacity} MGLT {ship.Mglt} consumables {ship.Consumables}";
+                    var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                    var starships = await context.Starships.ToListAsync();
 
-                    var generatedEmbeddings = await _embeddingGenerator.GenerateAsync(new[] { searchText });
-                    _cachedEmbeddings.Add((ship, generatedEmbeddings[0].Vector));
+                    // Build into a local list; assign atomically so SearchAsync never sees a partial index.
+                    var newEmbeddings = new List<(Starship, ReadOnlyMemory<float>)>(starships.Count);
+
+                    foreach (var ship in starships)
+                    {
+                        string searchText = $"search_document: {ship.Name} {ship.Model} {ship.Manufacturer} " +
+                            $"class {ship.StarshipClass} hyperdrive {ship.HyperdriveRating} " +
+                            $"crew {ship.Crew} passengers {ship.Passengers} " +
+                            $"length {ship.Length} speed {ship.MaxAtmospheringSpeed} " +
+                            $"cargo {ship.CargoCapacity} MGLT {ship.Mglt} consumables {ship.Consumables}";
+
+                        var generatedEmbeddings = await _embeddingGenerator.GenerateAsync(new[] { searchText });
+                        newEmbeddings.Add((ship, generatedEmbeddings[0].Vector));
+                    }
+
+                    _cachedEmbeddings = newEmbeddings;
                 }
+            }
+            finally
+            {
+                _buildLock.Release();
             }
         }
 
-        public async Task<List<Starship>> SearchAsync(string query, int take = 10)
+        public virtual async Task<List<Starship>> SearchAsync(string query, int take = 10)
         {
-            if (_cachedEmbeddings == null || !_cachedEmbeddings.Any())
+            // Capture a snapshot so this read is unaffected by a concurrent BuildIndexAsync swap.
+            var snapshot = _cachedEmbeddings;
+            if (snapshot == null || !snapshot.Any())
                 return new List<Starship>();
 
             string searchPrompt = $"search_query: {query}";
             var queryEmbeddings = await _embeddingGenerator.GenerateAsync(new[] { searchPrompt });
             var queryVector = queryEmbeddings[0].Vector;
 
-            return _cachedEmbeddings
+            return snapshot
                 .Select(item => new
                 {
                     Starship = item.Ship,

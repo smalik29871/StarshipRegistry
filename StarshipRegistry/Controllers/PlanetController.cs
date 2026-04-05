@@ -1,9 +1,12 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using StarshipRegistry.Data;
 using StarshipRegistry.Helpers;
 using StarshipRegistry.Models;
 using StarshipRegistry.Models.ViewModels;
+using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -11,13 +14,15 @@ namespace StarshipRegistry.Controllers
 {
     public class PlanetController : Controller
     {
-        private readonly DetailsHelper _detailsHelper = null!;
+        private readonly DetailsHelper _detailsHelper;
         private readonly ApplicationDbContext _context;
+        private readonly ILogger<PlanetController> _logger;
 
-        public PlanetController(DetailsHelper detailsHelper, ApplicationDbContext context)
+        public PlanetController(DetailsHelper detailsHelper, ApplicationDbContext context, ILogger<PlanetController> logger)
         {
             _detailsHelper = detailsHelper;
             _context = context;
+            _logger = logger;
         }
 
         public async Task<IActionResult> Details(string id, bool edit = false, string returnUrl = "")
@@ -26,22 +31,19 @@ namespace StarshipRegistry.Controllers
 
             if (planet == null)
             {
+                _logger.LogWarning("Planet with ID {Id} was not found during fetch.", id);
                 return NotFound();
             }
 
             ViewData["PageMode"] = edit ? "Edit" : "Details";
             ViewData["ReturnUrl"] = returnUrl;
 
-            var films = await _context.Films.OrderBy(f => f.EpisodeId).ToListAsync();
-
-            ViewData["AvailableFilms"] = films;
-
-            var filmNames = await _detailsHelper.GetFilmNamesBatchAsync(planet.Films);
+            await PopulateAvailableFilmsAsync();
 
             var viewModel = new PlanetDetailsViewModel
             {
                 Planet = planet,
-                FilmNames = filmNames
+                FilmNames = await _detailsHelper.GetNamesBatchAsync<Film>(planet.Films, f => f.Title)
             };
 
             return View(viewModel);
@@ -50,38 +52,40 @@ namespace StarshipRegistry.Controllers
         [HttpPost]
         public async Task<IActionResult> Edit(Planet planet, [FromForm(Name = "selectedFilms")] string[] selectedFilms, string returnUrl = "")
         {
-            if (ModelState.IsValid)
+            if (!ModelState.IsValid)
             {
-                planet.Films = selectedFilms?.Where(f => !string.IsNullOrEmpty(f)).ToList() ?? new();
+                ViewData["PageMode"] = "Edit";
+                ViewData["ReturnUrl"] = returnUrl;
+                planet.Films ??= new List<string>();
 
-                _context.Update(planet);
-                await _context.SaveChangesAsync();
+                await PopulateAvailableFilmsAsync();
 
-                TempData["Message"] = $"{planet.Name} was successfully updated!";
-
-                var numericId = planet.Url?.TrimEnd('/').Split('/').Last();
-                if (!string.IsNullOrEmpty(returnUrl))
+                var viewModel = new PlanetDetailsViewModel
                 {
-                    return Redirect(returnUrl);
-                }
-                return RedirectToAction(nameof(Details), new { id = numericId });
+                    Planet = planet,
+                    FilmNames = await _detailsHelper.GetNamesBatchAsync<Film>(planet.Films, f => f.Title)
+                };
+
+                return View("Details", viewModel);
             }
 
-            ViewData["PageMode"] = "Edit";
-            ViewData["ReturnUrl"] = returnUrl;
-            planet.Films ??= new();
+            planet.Films = selectedFilms?.Where(f => !string.IsNullOrEmpty(f)).ToList() ?? new List<string>();
 
-            var films = await _context.Films.OrderBy(f => f.EpisodeId).ToListAsync();
+            _context.Update(planet);
+            await _context.SaveChangesAsync();
 
-            ViewData["AvailableFilms"] = films;
+            TempData["Message"] = $"{planet.Name} was successfully updated!";
 
-            var viewModel = new PlanetDetailsViewModel
-            {
-                Planet = planet,
-                FilmNames = await _detailsHelper.GetFilmNamesBatchAsync(planet.Films)
-            };
+            var numericId = planet.Url?.TrimEnd('/').Split('/').Last();
 
-            return View("Details", viewModel);
+            return !string.IsNullOrEmpty(returnUrl)
+                ? Redirect(returnUrl)
+                : RedirectToAction(nameof(Details), new { id = numericId });
+        }
+
+        private async Task PopulateAvailableFilmsAsync()
+        {
+            ViewData["AvailableFilms"] = await _context.Films.OrderBy(f => f.EpisodeId).ToListAsync();
         }
     }
 }

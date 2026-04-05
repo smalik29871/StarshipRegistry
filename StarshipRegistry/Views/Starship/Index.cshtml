@@ -116,11 +116,7 @@
             </div>`;
 
         $(document).ready(function () {
-            const table = $('#starshipTable').DataTable({
-                responsive: true,
-                serverSide: true,
-                processing: true,
-                ajax: '/Starship/DataTable',
+            const tableOptions = {
                 columns: [
                     { data: 'name', render: n => `<span class="fw-bold">${n}</span>` },
                     { data: 'model' },
@@ -134,13 +130,30 @@
                 columnDefs: [
                     { responsivePriority: 1, targets: 0 },
                     { responsivePriority: 1, targets: 7 }
-                ],
+                ]
+            };
+
+            const createServerTable = () => $('#starshipTable').DataTable({
+                ...tableOptions,
+                responsive: true,
+                serverSide: true,
+                processing: true,
+                ajax: '/Starship/DataTable',
                 language: {
                     search: '<i class="bi bi-search"></i>',
                     searchPlaceholder: 'Search name, model, class...',
                     processing: '<div class="text-info">Loading fleet data...</div>'
                 }
             });
+
+            const createClientTable = data => $('#starshipTable').DataTable({
+                ...tableOptions,
+                responsive: true,
+                data,
+                language: { search: '<i class="bi bi-search"></i>' }
+            });
+
+            let table = createServerTable();
 
             $('#starshipTable').on('click', '.btn-delete-ship', function () {
                 document.getElementById('delete-id').value = $(this).data('id');
@@ -154,6 +167,11 @@
                 const clearBtn = document.getElementById('aiClearBtn');
                 const searchBtn = document.getElementById('aiSearchBtn');
 
+                if (!query) {
+                    restoreServerTable();
+                    return;
+                }
+
                 status.textContent = 'Querying Holonet AI...';
                 status.classList.remove('d-none', 'text-danger');
                 status.classList.add('text-info');
@@ -161,68 +179,19 @@
 
                 try {
                     const res = await fetch(`/Starship/AiSearch?query=${encodeURIComponent(query)}`);
+                    if (!res.ok) {
+                        throw new Error('AI search request failed.');
+                    }
+
                     const ships = await res.json();
 
                     // Switch to client-side mode to display AI results
                     table.destroy();
                     $('#starshipTable tbody').empty();
-
-                    const clientTable = $('#starshipTable').DataTable({
-                        responsive: true,
-                        data: ships,
-                        columns: [
-                            { data: 'name', render: n => `<span class="fw-bold">${n}</span>` },
-                            { data: 'model' },
-                            { data: 'starshipClass', render: v => `<span class="text-capitalize">${v}</span>` },
-                            { data: 'costInCredits' },
-                            { data: 'crew' },
-                            { data: 'hyperdriveRating' },
-                            { data: 'created' },
-                            { data: 'id', orderable: false, searchable: false, render: (id, _, row) => actionButtons(id, row.name) }
-                        ],
-                        columnDefs: [
-                            { responsivePriority: 1, targets: 0 },
-                            { responsivePriority: 1, targets: 7 }
-                        ],
-                        language: { search: '<i class="bi bi-search"></i>' }
-                    });
+                    table = createClientTable(ships);
 
                     status.textContent = `${ships.length} result(s) returned by AI.`;
                     clearBtn.classList.remove('d-none');
-
-                    document.getElementById('aiClearBtn').onclick = function () {
-                        clientTable.destroy();
-                        $('#starshipTable tbody').empty();
-                        document.getElementById('aiSearchInput').value = '';
-                        status.classList.add('d-none');
-                        clearBtn.classList.add('d-none');
-
-                        // Reinitialise server-side table
-                        $('#starshipTable').DataTable({
-                            responsive: true,
-                            serverSide: true,
-                            processing: true,
-                            ajax: '/Starship/DataTable',
-                            columns: [
-                                { data: 'name', render: n => `<span class="fw-bold">${n}</span>` },
-                                { data: 'model' },
-                                { data: 'starshipClass', render: v => `<span class="text-capitalize">${v}</span>` },
-                                { data: 'costInCredits' },
-                                { data: 'crew' },
-                                { data: 'hyperdriveRating' },
-                                { data: 'created' },
-                                { data: 'id', orderable: false, searchable: false, render: (id, _, row) => actionButtons(id, row.name) }
-                            ],
-                            columnDefs: [
-                                { responsivePriority: 1, targets: 0 },
-                                { responsivePriority: 1, targets: 7 }
-                            ],
-                            language: {
-                                search: '<i class="bi bi-search"></i>',
-                                searchPlaceholder: 'Search name, model, class...'
-                            }
-                        });
-                    };
                 } catch {
                     status.textContent = 'AI search failed. Try again.';
                     status.classList.replace('text-info', 'text-danger');
@@ -231,8 +200,26 @@
                 }
             }
 
+            function restoreServerTable() {
+                const status = document.getElementById('aiSearchStatus');
+                const clearBtn = document.getElementById('aiClearBtn');
+
+                if ($.fn.DataTable.isDataTable('#starshipTable')) {
+                    table.destroy();
+                }
+
+                $('#starshipTable tbody').empty();
+                document.getElementById('aiSearchInput').value = '';
+                status.classList.add('d-none');
+                status.classList.remove('text-danger');
+                status.classList.add('text-info');
+                clearBtn.classList.add('d-none');
+                table = createServerTable();
+            }
+
             document.getElementById('aiSearchBtn').addEventListener('click', runAiSearch);
             document.getElementById('aiSearchInput').addEventListener('keydown', e => { if (e.key === 'Enter') runAiSearch(); });
+            document.getElementById('aiClearBtn').addEventListener('click', restoreServerTable);
         });
 
         function populateDeleteModal(id, name) {

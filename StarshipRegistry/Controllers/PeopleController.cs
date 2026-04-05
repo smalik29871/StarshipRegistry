@@ -1,9 +1,12 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using StarshipRegistry.Data;
 using StarshipRegistry.Helpers;
 using StarshipRegistry.Models;
 using StarshipRegistry.Models.ViewModels;
+using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -11,13 +14,15 @@ namespace StarshipRegistry.Controllers
 {
     public class PeopleController : Controller
     {
-        private readonly DetailsHelper _detailsHelper = null!;
+        private readonly DetailsHelper _detailsHelper;
         private readonly ApplicationDbContext _context;
+        private readonly ILogger<PeopleController> _logger;
 
-        public PeopleController(DetailsHelper detailsHelper, ApplicationDbContext context)
+        public PeopleController(DetailsHelper detailsHelper, ApplicationDbContext context, ILogger<PeopleController> logger)
         {
             _detailsHelper = detailsHelper;
             _context = context;
+            _logger = logger;
         }
 
         public async Task<IActionResult> Details(string id, bool edit = false, string returnUrl = "")
@@ -26,71 +31,66 @@ namespace StarshipRegistry.Controllers
 
             if (person == null)
             {
+                _logger.LogWarning("Character with ID {Id} not found in DB or SWAPI.", id);
                 return NotFound();
             }
 
             ViewData["PageMode"] = edit ? "Edit" : "Details";
             ViewData["ReturnUrl"] = returnUrl;
 
-            var films = await _context.Films.OrderBy(f => f.EpisodeId).ToListAsync();
-            var starships = await _context.Starships.OrderBy(s => s.Name).ToListAsync();
-
-            ViewData["AvailableFilms"] = films;
-            ViewData["AvailableStarships"] = starships;
-
-            var filmNames = await _detailsHelper.GetFilmNamesBatchAsync(person.Films);
-            var starshipNames = await _detailsHelper.GetStarshipNamesBatchAsync(person.Starships);
+            await PopulateFormLookupsAsync();
 
             var viewModel = new PeopleDetailsViewModel
             {
                 Character = person,
-                FilmNames = filmNames,
-                StarshipNames = starshipNames
-            };
-
-            return View(viewModel);
-        }
-
-        [HttpPost]
-        public async Task<IActionResult> Edit(Character character, [FromForm(Name = "selectedFilms")] string[] selectedFilms, [FromForm(Name = "selectedStarships")] string[] selectedStarships, string returnUrl = "")
-        {
-            if (ModelState.IsValid)
-            {
-                character.Films = selectedFilms?.Where(f => !string.IsNullOrEmpty(f)).ToList() ?? new();
-                character.Starships = selectedStarships?.Where(s => !string.IsNullOrEmpty(s)).ToList() ?? new();
-
-                _context.Update(character);
-                await _context.SaveChangesAsync();
-
-                TempData["Message"] = $"{character.Name} was successfully updated!";
-
-                var numericId = character.Url?.TrimEnd('/').Split('/').Last();
-                if (!string.IsNullOrEmpty(returnUrl))
-                {
-                    return Redirect(returnUrl);
-                }
-                return RedirectToAction(nameof(Details), new { id = numericId });
-            }
-
-            ViewData["PageMode"] = "Edit";
-            ViewData["ReturnUrl"] = returnUrl;
-            character.Films ??= new();
-            character.Starships ??= new();
-
-            var films = await _context.Films.OrderBy(f => f.EpisodeId).ToListAsync();
-            var starships = await _context.Starships.OrderBy(s => s.Name).ToListAsync();
-
-            ViewData["AvailableFilms"] = films;
-            ViewData["AvailableStarships"] = starships;
-
-            var viewModel = new PeopleDetailsViewModel
-            {
-                Character = character,
-                FilmNames = await _detailsHelper.GetFilmNamesBatchAsync(character.Films),
-                StarshipNames = await _detailsHelper.GetStarshipNamesBatchAsync(character.Starships)
+                FilmNames = await _detailsHelper.GetNamesBatchAsync<Film>(person.Films, f => f.Title),
+                StarshipNames = await _detailsHelper.GetNamesBatchAsync<Starship>(person.Starships, s => s.Name)
             };
 
             return View("Details", viewModel);
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> Edit(Character character, [FromForm] string[] selectedFilms, [FromForm] string[] selectedStarships, string returnUrl = "")
+        {
+            if (!ModelState.IsValid)
+            {
+                ViewData["PageMode"] = "Edit";
+                ViewData["ReturnUrl"] = returnUrl;
+                character.Films ??= new List<string>();
+                character.Starships ??= new List<string>();
+
+                await PopulateFormLookupsAsync();
+
+                var viewModel = new PeopleDetailsViewModel
+                {
+                    Character = character,
+                    FilmNames = await _detailsHelper.GetNamesBatchAsync<Film>(character.Films, f => f.Title),
+                    StarshipNames = await _detailsHelper.GetNamesBatchAsync<Starship>(character.Starships, s => s.Name)
+                };
+
+                return View("Details", viewModel);
+            }
+
+            character.Films = selectedFilms?.Where(f => !string.IsNullOrEmpty(f)).ToList() ?? new List<string>();
+            character.Starships = selectedStarships?.Where(s => !string.IsNullOrEmpty(s)).ToList() ?? new List<string>();
+
+            _context.Update(character);
+            await _context.SaveChangesAsync();
+
+            TempData["Message"] = $"{character.Name} was successfully updated!";
+
+            var numericId = character.Url?.TrimEnd('/').Split('/').Last();
+
+            return !string.IsNullOrEmpty(returnUrl)
+                ? Redirect(returnUrl)
+                : RedirectToAction(nameof(Details), new { id = numericId });
+        }
+
+        private async Task PopulateFormLookupsAsync()
+        {
+            ViewData["AvailableFilms"] = await _context.Films.OrderBy(f => f.EpisodeId).ToListAsync();
+            ViewData["AvailableStarships"] = await _context.Starships.OrderBy(s => s.Name).ToListAsync();
         }
     }
 }

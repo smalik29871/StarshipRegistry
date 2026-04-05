@@ -4,7 +4,10 @@ using StarshipRegistry.Configuration;
 using StarshipRegistry.Data;
 using StarshipRegistry.Models;
 using StarshipRegistry.Services;
-using System.Text.Json;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace StarshipRegistry.Helpers
 {
@@ -12,113 +15,98 @@ namespace StarshipRegistry.Helpers
     {
         private readonly SwapiService _swapiService;
         private readonly ApplicationDbContext _context;
+        private readonly string _swapiBaseUrl;
 
-        public DetailsHelper(SwapiService swapiService, ApplicationDbContext context)
+        public DetailsHelper(
+            SwapiService swapiService,
+            ApplicationDbContext context,
+            IOptions<SwapiSettings> swapiSettings)
         {
             _swapiService = swapiService;
             _context = context;
+            _swapiBaseUrl = swapiSettings.Value.BaseUrl.TrimEnd('/');
         }
 
-        public async Task<T?> GetOrFetchAndCacheAsync<T>(
-            string id,
-            string apiEndpoint) where T : class
+        public async Task<T?> GetOrFetchAndCacheAsync<T>(string id, string apiEndpoint) where T : class, ISwapiEntity
         {
-            var swapiUrl = $"https://swapi.info/api/{apiEndpoint}/{id}";
-
+            var swapiUrl = $"{_swapiBaseUrl}/{apiEndpoint}/{id}";
             var dbSet = GetDbSet<T>();
-            var entity = await dbSet.FirstOrDefaultAsync(e => EF.Property<string>(e, "Url") == swapiUrl);
 
-            if (entity == null)
+            // SWAPI stores URLs with a trailing slash; match both forms to avoid a silent cache miss.
+            var entity = await dbSet.FirstOrDefaultAsync(e => e.Url == swapiUrl || e.Url == swapiUrl + "/");
+
+            if (entity != null) return entity;
+
+            // Fetch from API if not in DB
+            entity = await _swapiService.FetchFromApiAsync<T>(swapiUrl);
+            if (entity == null) return null;
+
+            try
             {
-                entity = await _swapiService.FetchFromApiAsync<T>(swapiUrl);
-
-                if (entity != null)
+                var alreadyExists = await dbSet.AnyAsync(e => e.Url == swapiUrl || e.Url == swapiUrl + "/");
+                if (!alreadyExists)
                 {
-                    try
-                    {
-                        bool alreadyExists = await dbSet.AnyAsync(e => EF.Property<string>(e, "Url") == swapiUrl);
-
-                        if (!alreadyExists)
-                        {
-                            dbSet.Add(entity);
-                            await _context.SaveChangesAsync();
-                        }
-                    }
-                    catch (DbUpdateException)
-                    {
-                        _context.Entry(entity).State = EntityState.Detached;
-                    }
+                    dbSet.Add(entity);
+                    await _context.SaveChangesAsync();
                 }
+            }
+            catch (DbUpdateException)
+            {
+                // Good fallback practice to avoid tracking ghost entities
+                _context.Entry(entity).State = EntityState.Detached;
             }
 
             return entity;
         }
 
-        public async Task<Dictionary<string, string>> GetFilmNamesBatchAsync(List<string>? urls)
+        /// <summary>
+        /// A generic method to replace all 6 repetitive batch fetchers.
+        /// </summary>
+        public async Task<Dictionary<string, string>> GetNamesBatchAsync<T>(
+            List<string>? urls,
+            Func<T, string> nameSelector) where T : class, ISwapiEntity
         {
             var result = new Dictionary<string, string>();
-            if (urls == null || !urls.Any())
-                return result;
+            if (urls == null || !urls.Any()) return result;
 
-            var films = await _context.Films
-                .Where(f => urls.Contains(f.Url))
-                .ToDictionaryAsync(f => f.Url, f => f.Title);
+            var dbSet = GetDbSet<T>();
 
-            var missingUrls = urls.Where(u => !films.ContainsKey(u)).ToList();
+            // Find what we already have cached
+            var cachedEntities = await dbSet
+                .Where(e => urls.Contains(e.Url))
+                .ToListAsync();
 
+            var mappedResults = cachedEntities.ToDictionary(
+                e => e.Url,
+                nameSelector
+            );
+
+            var missingUrls = urls.Where(u => !mappedResults.ContainsKey(u)).ToList();
+
+            // Fetch missing from API
             foreach (var url in missingUrls)
             {
-                var film = await _swapiService.FetchFromApiAsync<Film>(url);
-                if (film != null)
+                var externalEntity = await _swapiService.FetchFromApiAsync<T>(url);
+                if (externalEntity == null) continue;
+
+                var name = nameSelector(externalEntity);
+                mappedResults[url] = name;
+
+                try
                 {
-                    films[url] = film.Title;
-                    try
-                    {
-                        _context.Films.Add(film);
-                        await _context.SaveChangesAsync();
-                    }
-                    catch (DbUpdateException)
-                    {
-                    }
+                    dbSet.Add(externalEntity);
+                    await _context.SaveChangesAsync();
+                }
+                catch (DbUpdateException)
+                {
+                    _context.Entry(externalEntity).State = EntityState.Detached;
                 }
             }
 
-            return films;
+            return mappedResults;
         }
 
-        public async Task<Dictionary<string, string>> GetCharacterNamesBatchAsync(List<string>? urls)
-        {
-            var result = new Dictionary<string, string>();
-            if (urls == null || !urls.Any())
-                return result;
-
-            var characters = await _context.Characters
-                .Where(c => urls.Contains(c.Url))
-                .ToDictionaryAsync(c => c.Url, c => c.Name);
-
-            var missingUrls = urls.Where(u => !characters.ContainsKey(u)).ToList();
-
-            foreach (var url in missingUrls)
-            {
-                var character = await _swapiService.FetchFromApiAsync<Character>(url);
-                if (character != null)
-                {
-                    characters[url] = character.Name;
-                    try
-                    {
-                        _context.Characters.Add(character);
-                        await _context.SaveChangesAsync();
-                    }
-                    catch (DbUpdateException)
-                    {
-                    }
-                }
-            }
-
-            return characters;
-        }
-
-        private DbSet<T> GetDbSet<T>() where T : class
+        private DbSet<T> GetDbSet<T>() where T : class, ISwapiEntity
         {
             return typeof(T).Name switch
             {
@@ -132,125 +120,12 @@ namespace StarshipRegistry.Helpers
             };
         }
 
-        public async Task<Dictionary<string, string>> GetPlanetNamesBatchAsync(List<string>? urls)
-        {
-            var result = new Dictionary<string, string>();
-            if (urls == null || !urls.Any())
-                return result;
-
-            var planets = await _context.Planets
-                .Where(p => urls.Contains(p.Url))
-                .ToDictionaryAsync(p => p.Url, p => p.Name);
-
-            var missingUrls = urls.Where(u => !planets.ContainsKey(u)).ToList();
-
-            foreach (var url in missingUrls)
-            {
-                var planet = await _swapiService.FetchFromApiAsync<Planet>(url);
-                if (planet != null)
-                {
-                    planets[url] = planet.Name;
-                    try
-                    {
-                        _context.Planets.Add(planet);
-                        await _context.SaveChangesAsync();
-                    }
-                    catch (DbUpdateException) { }
-                }
-            }
-
-            return planets;
-        }
-
-        public async Task<Dictionary<string, string>> GetStarshipNamesBatchAsync(List<string>? urls)
-        {
-            var result = new Dictionary<string, string>();
-            if (urls == null || !urls.Any())
-                return result;
-
-            var starships = await _context.Starships
-                .Where(s => urls.Contains(s.Url))
-                .ToDictionaryAsync(s => s.Url, s => s.Name);
-
-            var missingUrls = urls.Where(u => !starships.ContainsKey(u)).ToList();
-
-            foreach (var url in missingUrls)
-            {
-                var starship = await _swapiService.FetchFromApiAsync<Starship>(url);
-                if (starship != null)
-                {
-                    starships[url] = starship.Name;
-                    try
-                    {
-                        _context.Starships.Add(starship);
-                        await _context.SaveChangesAsync();
-                    }
-                    catch (DbUpdateException) { }
-                }
-            }
-
-            return starships;
-        }
-
-        public async Task<Dictionary<string, string>> GetVehicleNamesBatchAsync(List<string>? urls)
-        {
-            var result = new Dictionary<string, string>();
-            if (urls == null || !urls.Any())
-                return result;
-
-            var vehicles = await _context.Vehicles
-                .Where(v => urls.Contains(v.Url))
-                .ToDictionaryAsync(v => v.Url, v => v.Name);
-
-            var missingUrls = urls.Where(u => !vehicles.ContainsKey(u)).ToList();
-
-            foreach (var url in missingUrls)
-            {
-                var vehicle = await _swapiService.FetchFromApiAsync<Vehicle>(url);
-                if (vehicle != null)
-                {
-                    vehicles[url] = vehicle.Name;
-                    try
-                    {
-                        _context.Vehicles.Add(vehicle);
-                        await _context.SaveChangesAsync();
-                    }
-                    catch (DbUpdateException) { }
-                }
-            }
-
-            return vehicles;
-        }
-
-        public async Task<Dictionary<string, string>> GetSpeciesNamesBatchAsync(List<string>? urls)
-        {
-            var result = new Dictionary<string, string>();
-            if (urls == null || !urls.Any())
-                return result;
-
-            var species = await _context.Species
-                .Where(s => urls.Contains(s.Url))
-                .ToDictionaryAsync(s => s.Url, s => s.Name);
-
-            var missingUrls = urls.Where(u => !species.ContainsKey(u)).ToList();
-
-            foreach (var url in missingUrls)
-            {
-                var spec = await _swapiService.FetchFromApiAsync<Species>(url);
-                if (spec != null)
-                {
-                    species[url] = spec.Name;
-                    try
-                    {
-                        _context.Species.Add(spec);
-                        await _context.SaveChangesAsync();
-                    }
-                    catch (DbUpdateException) { }
-                }
-            }
-
-            return species;
-        }
-
+        // Specific wrappers so we don't have to change your existing controller calls!
+        public Task<Dictionary<string, string>> GetFilmNamesBatchAsync(List<string>? urls) => GetNamesBatchAsync<Film>(urls, f => f.Title);
+        public Task<Dictionary<string, string>> GetCharacterNamesBatchAsync(List<string>? urls) => GetNamesBatchAsync<Character>(urls, c => c.Name);
+        public Task<Dictionary<string, string>> GetPlanetNamesBatchAsync(List<string>? urls) => GetNamesBatchAsync<Planet>(urls, p => p.Name);
+        public Task<Dictionary<string, string>> GetStarshipNamesBatchAsync(List<string>? urls) => GetNamesBatchAsync<Starship>(urls, s => s.Name);
+        public Task<Dictionary<string, string>> GetVehicleNamesBatchAsync(List<string>? urls) => GetNamesBatchAsync<Vehicle>(urls, v => v.Name);
+        public Task<Dictionary<string, string>> GetSpeciesNamesBatchAsync(List<string>? urls) => GetNamesBatchAsync<Species>(urls, s => s.Name);
     }
 }

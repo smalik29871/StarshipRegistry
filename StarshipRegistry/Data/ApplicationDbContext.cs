@@ -1,5 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
+using Microsoft.Extensions.Options;
+using StarshipRegistry.Configuration;
 using StarshipRegistry.Models;
 using System;
 using System.Collections.Generic;
@@ -13,9 +15,14 @@ namespace StarshipRegistry.Data
 {
     public class ApplicationDbContext : DbContext
     {
-        public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
+        private readonly string _swapiBaseUrl;
+
+        public ApplicationDbContext(
+            DbContextOptions<ApplicationDbContext> options,
+            IOptions<SwapiSettings> swapiSettings)
             : base(options)
         {
+            _swapiBaseUrl = swapiSettings.Value.BaseUrl.TrimEnd('/');
         }
 
         public DbSet<Starship> Starships { get; set; }
@@ -105,7 +112,7 @@ namespace StarshipRegistry.Data
             if (await Films.AnyAsync()) return;
 
             using var httpClient = new HttpClient();
-            httpClient.BaseAddress = new Uri("https://swapi.info/api/");
+            httpClient.BaseAddress = new Uri($"{_swapiBaseUrl}/");
 
             try
             {

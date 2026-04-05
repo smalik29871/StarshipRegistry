@@ -8,16 +8,14 @@
     string mode = ViewData["PageMode"]?.ToString() ?? "Details";
     bool isEditMode = mode == "Edit" || mode == "Create";
     bool isCreateMode = mode == "Create";
+    string returnUrl = ViewData["ReturnUrl"]?.ToString() ?? "";
+    string backUrl = !string.IsNullOrEmpty(returnUrl) ? returnUrl : "javascript:history.back()";
 
     ViewData["Title"] = isCreateMode ? "Register New Asset" : $"Asset Profile - {Model.Starship.Name}";
 }
 
 <div class="container-fluid mt-4 pb-5">
     <div class="mb-4">
-        @{
-            string returnUrl = ViewData["ReturnUrl"]?.ToString() ?? "";
-            string backUrl = !string.IsNullOrEmpty(returnUrl) ? returnUrl : "javascript:history.back()";
-        }
         <a href="@backUrl" class="btn btn-outline-secondary btn-sm" onclick="if(this.href === 'javascript:history.back()' && window.history.length <= 1) { window.location.href='/'; return false; }">
             <i class="bi bi-arrow-left me-1"></i> Back
         </a>
@@ -39,9 +37,6 @@
             </div>
 
             <div class="d-flex align-items-center gap-2">
-                @{
-                    string returnUrl = ViewData["ReturnUrl"]?.ToString() ?? "";
-                }
                 @if (isEditMode)
                 {
                     <button type="submit" class="btn btn-outline-success">

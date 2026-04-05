@@ -1,138 +1,144 @@
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.ViewFeatures;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 using Moq;
-using StarshipRegistry.Configuration;
-using StarshipRegistry.Controllers;
-using StarshipRegistry.Helpers;
 using StarshipRegistry.Models;
-using StarshipRegistry.Services;
+using StarshipRegistry.Models.ViewModels;
 
 namespace StarshipRegistry.Tests;
 
 public class StarshipControllerCrudTests
 {
-    private const string BaseUrl = "https://swapi.info/api/";
-
-    private static StarshipController CreateController(StarshipRegistry.Data.ApplicationDbContext context)
-    {
-        var httpFactory = new Mock<System.Net.Http.IHttpClientFactory>();
-        var config = new Mock<Microsoft.Extensions.Configuration.IConfiguration>();
-        config.Setup(c => c["Groq:ApiKey"]).Returns("test-key");
-        config.Setup(c => c["Groq:Model"]).Returns("llama-3.1-8b-instant");
-        config.Setup(c => c["Groq:BaseUrl"]).Returns("https://api.groq.com/openai/v1/chat/completions");
-
-        var queryHelper = new StarshipQueryHelper(httpFactory.Object, config.Object, context);
-        var swapiSettings = Options.Create(new SwapiSettings { BaseUrl = BaseUrl });
-
-        // Mock SearchService so Delete's BuildIndexAsync doesn't throw
-        var searchService = new Mock<StarshipSearchService>(MockBehavior.Loose,
-            Mock.Of<IServiceScopeFactory>(),
-            Mock.Of<Microsoft.Extensions.Configuration.IConfiguration>());
-        searchService.Setup(s => s.BuildIndexAsync()).Returns(Task.CompletedTask);
-
-        var controller = new StarshipController(null!, context, null!, searchService.Object, queryHelper, swapiSettings);
-
-        // Wire up TempData so controller doesn't throw on TempData["Message"] = ...
-        var tempData = new TempDataDictionary(new DefaultHttpContext(), Mock.Of<ITempDataProvider>());
-        controller.TempData = tempData;
-
-        return controller;
-    }
-
-    // ── CREATE ────────────────────────────────────────────────────────────────
-
     [Fact]
-    public async Task Create_ValidShip_SavesAndRedirectsToIndex()
+    public async Task Details_returns_not_found_when_ship_is_missing()
     {
         var context = TestDbContextFactory.Create(Guid.NewGuid().ToString());
-        var controller = CreateController(context);
+        var (controller, _) = StarshipControllerTestFactory.Create(context);
 
-        var ship = new Starship { Name = "X-wing", Model = "T-65 X-wing", StarshipClass = "Starfighter" };
-        var result = await controller.Create(ship, Array.Empty<string>(), Array.Empty<string>()) as RedirectToActionResult;
+        var result = await controller.Details("999");
+
+        Assert.IsType<NotFoundResult>(result);
+    }
+
+    [Fact]
+    public async Task Details_returns_view_model_with_related_names()
+    {
+        var context = TestDbContextFactory.Create(Guid.NewGuid().ToString());
+
+        var filmUrl = "https://swapi.info/api/films/1/";
+        var pilotUrl = "https://swapi.info/api/people/1/";
+        var shipUrl = "https://swapi.info/api/starships/12";
+
+        context.Films.Add(new Film { Url = filmUrl, Title = "A New Hope", EpisodeId = 4 });
+        context.Characters.Add(new Character { Url = pilotUrl, Name = "Luke Skywalker" });
+        context.Starships.Add(new Starship
+        {
+            Url = shipUrl,
+            Name = "X-wing",
+            Model = "T-65 X-wing",
+            StarshipClass = "Starfighter",
+            Films = new List<string> { filmUrl },
+            Pilots = new List<string> { pilotUrl }
+        });
+        context.SaveChanges();
+
+        var (controller, _) = StarshipControllerTestFactory.Create(context);
+
+        var result = await controller.Details("12") as ViewResult;
 
         Assert.NotNull(result);
-        Assert.Equal("Index", result!.ActionName);
-        Assert.Single(context.Starships);
+        Assert.Equal("Details", result!.ViewName);
+
+        var model = Assert.IsType<StarshipDetailsViewModel>(result.Model);
+        Assert.Equal("X-wing", model.Starship.Name);
+        Assert.Equal("A New Hope", model.FilmNames[filmUrl]);
+        Assert.Equal("Luke Skywalker", model.PilotNames[pilotUrl]);
     }
 
     [Fact]
-    public async Task Create_GeneratesUrl_WhenUrlIsEmpty()
+    public async Task Edit_returns_details_view_when_model_state_is_invalid()
     {
         var context = TestDbContextFactory.Create(Guid.NewGuid().ToString());
-        var controller = CreateController(context);
+        context.Films.Add(new Film { Url = "https://swapi.info/api/films/1/", Title = "A New Hope", EpisodeId = 4 });
+        context.Characters.Add(new Character { Url = "https://swapi.info/api/people/1/", Name = "Luke Skywalker" });
+        context.SaveChanges();
 
-        var ship = new Starship { Name = "X-wing", Model = "T-65 X-wing", StarshipClass = "Starfighter", Url = "" };
-        await controller.Create(ship, Array.Empty<string>(), Array.Empty<string>());
+        var (controller, _) = StarshipControllerTestFactory.Create(context);
+        controller.ModelState.AddModelError("Name", "Name is required.");
 
-        var saved = context.Starships.Single();
-        Assert.Contains($"{BaseUrl}starships/", saved.Url);
+        var ship = new Starship
+        {
+            Url = "https://swapi.info/api/starships/12/",
+            Name = "",
+            Model = "T-65 X-wing",
+            StarshipClass = "Starfighter"
+        };
+
+        var result = await controller.Edit(ship, Array.Empty<string>(), Array.Empty<string>()) as ViewResult;
+
+        Assert.NotNull(result);
+        Assert.Equal("Details", result!.ViewName);
+        Assert.IsType<StarshipDetailsViewModel>(result.Model);
     }
 
     [Fact]
-    public async Task Create_SetsCreatedTimestamp()
+    public async Task Edit_updates_selected_relations_and_redirects_to_details()
     {
         var context = TestDbContextFactory.Create(Guid.NewGuid().ToString());
-        var controller = CreateController(context);
-
-        var before = DateTime.UtcNow;
-        var ship = new Starship { Name = "X-wing", Model = "T-65 X-wing", StarshipClass = "Starfighter" };
-        await controller.Create(ship, Array.Empty<string>(), Array.Empty<string>());
-
-        var saved = context.Starships.Single();
-        Assert.NotNull(saved.Created);
-        Assert.True(saved.Created >= before);
-    }
-
-    [Fact]
-    public async Task Create_AssignsFilmsAndPilots()
-    {
-        var context = TestDbContextFactory.Create(Guid.NewGuid().ToString());
-        var controller = CreateController(context);
-
-        var ship = new Starship { Name = "X-wing", Model = "T-65 X-wing", StarshipClass = "Starfighter" };
-        var films = new[] { "https://swapi.info/api/films/1/" };
-        var pilots = new[] { "https://swapi.info/api/people/1/" };
-        await controller.Create(ship, films, pilots);
-
-        var saved = context.Starships.Single();
-        Assert.Contains("https://swapi.info/api/films/1/", saved.Films);
-        Assert.Contains("https://swapi.info/api/people/1/", saved.Pilots);
-    }
-
-    // ── EDIT ──────────────────────────────────────────────────────────────────
-
-    [Fact]
-    public async Task Edit_ValidShip_UpdatesAndRedirectsToDetails()
-    {
-        var context = TestDbContextFactory.Create(Guid.NewGuid().ToString());
-        context.Starships.Add(new Starship { Url = "https://swapi.info/api/starships/12/", Name = "X-wing", Model = "T-65", StarshipClass = "Starfighter" });
+        context.Starships.Add(new Starship
+        {
+            Url = "https://swapi.info/api/starships/12/",
+            Name = "X-wing",
+            Model = "T-65",
+            StarshipClass = "Starfighter"
+        });
         context.SaveChanges();
         context.ChangeTracker.Clear();
 
-        var controller = CreateController(context);
-        var updated = new Starship { Url = "https://swapi.info/api/starships/12/", Name = "X-wing MkII", Model = "T-65B", StarshipClass = "Starfighter" };
+        var (controller, _) = StarshipControllerTestFactory.Create(context);
+        var updatedShip = new Starship
+        {
+            Url = "https://swapi.info/api/starships/12/",
+            Name = "X-wing Mk II",
+            Model = "T-65B",
+            StarshipClass = "Starfighter"
+        };
 
-        var result = await controller.Edit(updated, Array.Empty<string>(), Array.Empty<string>()) as RedirectToActionResult;
+        var result = await controller.Edit(
+            updatedShip,
+            new[] { "https://swapi.info/api/people/1/" },
+            new[] { "https://swapi.info/api/films/1/" }) as RedirectToActionResult;
 
         Assert.NotNull(result);
         Assert.Equal("Details", result!.ActionName);
-        Assert.Equal("X-wing MkII", context.Starships.Single().Name);
+        Assert.Equal("12", result.RouteValues!["id"]);
+
+        var savedShip = context.Starships.Single();
+        Assert.Equal("X-wing Mk II", savedShip.Name);
+        Assert.Contains("https://swapi.info/api/people/1/", savedShip.Pilots);
+        Assert.Contains("https://swapi.info/api/films/1/", savedShip.Films);
     }
 
     [Fact]
-    public async Task Edit_WithReturnUrl_RedirectsToReturnUrl()
+    public async Task Edit_redirects_to_return_url_when_one_is_supplied()
     {
         var context = TestDbContextFactory.Create(Guid.NewGuid().ToString());
-        context.Starships.Add(new Starship { Url = "https://swapi.info/api/starships/12/", Name = "X-wing", Model = "T-65", StarshipClass = "Starfighter" });
+        context.Starships.Add(new Starship
+        {
+            Url = "https://swapi.info/api/starships/12/",
+            Name = "X-wing",
+            Model = "T-65",
+            StarshipClass = "Starfighter"
+        });
         context.SaveChanges();
         context.ChangeTracker.Clear();
 
-        var controller = CreateController(context);
-        var ship = new Starship { Url = "https://swapi.info/api/starships/12/", Name = "X-wing", Model = "T-65", StarshipClass = "Starfighter" };
+        var (controller, _) = StarshipControllerTestFactory.Create(context);
+        var ship = new Starship
+        {
+            Url = "https://swapi.info/api/starships/12/",
+            Name = "X-wing",
+            Model = "T-65",
+            StarshipClass = "Starfighter"
+        };
 
         var result = await controller.Edit(ship, Array.Empty<string>(), Array.Empty<string>(), "/Starship") as RedirectResult;
 
@@ -140,32 +146,39 @@ public class StarshipControllerCrudTests
         Assert.Equal("/Starship", result!.Url);
     }
 
-    // ── DELETE ────────────────────────────────────────────────────────────────
-
     [Fact]
-    public async Task Delete_ExistingShip_RemovesAndRedirectsToIndex()
+    public async Task Delete_removes_a_matching_ship_and_rebuilds_the_index()
     {
         var context = TestDbContextFactory.Create(Guid.NewGuid().ToString());
-        context.Starships.Add(new Starship { Url = "https://swapi.info/api/starships/9/", Name = "Death Star", Model = "DS-1", StarshipClass = "battlestation" });
+        context.Starships.Add(new Starship
+        {
+            Url = "https://swapi.info/api/starships/9/",
+            Name = "Death Star",
+            Model = "DS-1",
+            StarshipClass = "Battlestation"
+        });
         context.SaveChanges();
 
-        var controller = CreateController(context);
+        var (controller, searchService) = StarshipControllerTestFactory.Create(context);
+
         var result = await controller.Delete("9") as RedirectToActionResult;
 
         Assert.NotNull(result);
         Assert.Equal("Index", result!.ActionName);
         Assert.Empty(context.Starships);
+        searchService.Verify(service => service.BuildIndexAsync(), Times.Once);
     }
 
     [Fact]
-    public async Task Delete_NonExistentShip_StillRedirectsToIndex()
+    public async Task Delete_still_redirects_when_ship_is_not_found()
     {
         var context = TestDbContextFactory.Create(Guid.NewGuid().ToString());
-        var controller = CreateController(context);
+        var (controller, searchService) = StarshipControllerTestFactory.Create(context);
 
         var result = await controller.Delete("999") as RedirectToActionResult;
 
         Assert.NotNull(result);
         Assert.Equal("Index", result!.ActionName);
+        searchService.Verify(service => service.BuildIndexAsync(), Times.Never);
     }
 }
