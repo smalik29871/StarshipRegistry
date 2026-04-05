@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using StarshipRegistry.Configuration;
 using StarshipRegistry.Data;
 using StarshipRegistry.Helpers;
 using StarshipRegistry.Models;

@@ -73,7 +73,8 @@ namespace StarshipRegistry.Services
 
         private static float CalculateCosineSimilarity(ReadOnlyMemory<float> vecA, ReadOnlyMemory<float> vecB)
         {
-            if (vecA.Length != vecB.Length) return 0;
+            if (vecA.Length != vecB.Length)
+                throw new ArgumentException($"Vector dimensions do not match: {vecA.Length} vs {vecB.Length}.");
 
             var arrayA = vecA.Span;
             var arrayB = vecB.Span;
