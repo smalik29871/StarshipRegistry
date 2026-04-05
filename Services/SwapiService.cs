@@ -9,7 +9,7 @@ using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using StarshipRegistry.Configuration;
+using Microsoft.Extensions.Options;
 using StarshipRegistry.Data;
 using StarshipRegistry.Helpers;
 using StarshipRegistry.Models;
@@ -24,12 +24,12 @@ namespace StarshipRegistry.Services
         private readonly SwapiSettings _swapiSettings;
         private readonly JsonSerializerOptions _jsonOptions;
 
-        public SwapiService(HttpClient httpClient, ApplicationDbContext context, ILogger<SwapiService> logger, SwapiSettings swapiSettings)
+        public SwapiService(HttpClient httpClient, ApplicationDbContext context, ILogger<SwapiService> logger, IOptions<SwapiSettings> swapiSettings)
         {
             _httpClient = httpClient;
             _context = context;
             _logger = logger;
-            _swapiSettings = swapiSettings;
+            _swapiSettings = swapiSettings.Value;
 
             _jsonOptions = new JsonSerializerOptions
             {

@@ -61,54 +61,7 @@
                             <th class="text-center">Actions</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        @if (Model != null && Model.Any())
-                        {
-                            foreach (var ship in Model)
-                            {
-                                var id = ship.Url.TrimEnd('/').Split('/').Last();
-                                <tr>
-                                    <td class="fw-bold">@ship.Name</td>
-                                    <td style="white-space: nowrap;">@ship.Model</td>
-                                    <td class="text-capitalize">@ship.StarshipClass</td>
-                                    
-                                    <td>@(string.IsNullOrEmpty(ship.CostInCredits) ? "N/A" : ship.CostInCredits)</td>
-                                    <td>@(string.IsNullOrEmpty(ship.Crew) ? "N/A" : ship.Crew)</td>
-                                    <td>@(string.IsNullOrEmpty(ship.HyperdriveRating) ? "N/A" : ship.HyperdriveRating)</td>
-                                    
-                                    <td>
-                                        @(ship.Created.HasValue? ship.Created.Value.ToString("yyyy-MM-dd") : "N/A")
-                                    </td>
-                                    <td class="text-center">
-                                        <div class="btn-group btn-group-sm">
-                                            <a asp-action="Details" asp-route-id="@id" class="btn btn-outline-success">
-                                                <i class="bi bi-search"></i>
-                                            </a>
-                                            
-                                            <a asp-action="Details" asp-route-id="@id" asp-route-edit="true" class="btn btn-outline-info">
-                                                <i class="bi bi-pencil"></i>
-                                            </a>
-
-                                            <button class="btn btn-outline-danger"
-                                                    onclick="populateDeleteModal('@id', '@System.Web.HttpUtility.JavaScriptStringEncode(ship.Name)')"
-                                                    data-bs-toggle="modal" data-bs-target="#deleteModal">
-                                                <i class="bi bi-trash"></i>
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            }
-                        }
-                        else
-                        {
-                            <tr>
-                                <td colspan="8" class="text-center py-5 text-muted">
-                                    <i class="bi bi-inbox display-4 d-block mb-3"></i>
-                                    No starships found. Try a different search or click "Sync from SWAPI"!
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
+                    <tbody></tbody>
                 </table>
             </div>
         </div>
@@ -156,22 +109,43 @@
             <div class="btn-group btn-group-sm">
                 <a href="/Starship/Details/${id}" class="btn btn-outline-success"><i class="bi bi-search"></i></a>
                 <a href="/Starship/Details/${id}?edit=true" class="btn btn-outline-info"><i class="bi bi-pencil"></i></a>
-                <button class="btn btn-outline-danger" onclick="populateDeleteModal('${id}', '${name.replace(/'/g, "\\'")}')"
-                    data-bs-toggle="modal" data-bs-target="#deleteModal"><i class="bi bi-trash"></i></button>
+                <button class="btn btn-outline-danger btn-delete-ship"
+                    data-id="${id}" data-name="${encodeURIComponent(name)}">
+                    <i class="bi bi-trash"></i>
+                </button>
             </div>`;
 
         $(document).ready(function () {
             const table = $('#starshipTable').DataTable({
                 responsive: true,
+                serverSide: true,
+                processing: true,
+                ajax: '/Starship/DataTable',
+                columns: [
+                    { data: 'name', render: n => `<span class="fw-bold">${n}</span>` },
+                    { data: 'model' },
+                    { data: 'starshipClass', render: v => `<span class="text-capitalize">${v}</span>` },
+                    { data: 'costInCredits' },
+                    { data: 'crew' },
+                    { data: 'hyperdriveRating' },
+                    { data: 'created' },
+                    { data: 'id', orderable: false, searchable: false, render: (id, _, row) => actionButtons(id, row.name) }
+                ],
                 columnDefs: [
-                    { orderable: false, targets: 7 },
                     { responsivePriority: 1, targets: 0 },
                     { responsivePriority: 1, targets: 7 }
                 ],
                 language: {
                     search: '<i class="bi bi-search"></i>',
-                    searchPlaceholder: 'Search by name, model...'
+                    searchPlaceholder: 'Search name, model, class...',
+                    processing: '<div class="text-info">Loading fleet data...</div>'
                 }
+            });
+
+            $('#starshipTable').on('click', '.btn-delete-ship', function () {
+                document.getElementById('delete-id').value = $(this).data('id');
+                document.getElementById('delete-name').innerText = decodeURIComponent($(this).data('name'));
+                $('#deleteModal').modal('show');
             });
 
             async function runAiSearch() {
@@ -181,30 +155,74 @@
                 const searchBtn = document.getElementById('aiSearchBtn');
 
                 status.textContent = 'Querying Holonet AI...';
-                status.classList.remove('d-none');
+                status.classList.remove('d-none', 'text-danger');
+                status.classList.add('text-info');
                 searchBtn.disabled = true;
 
                 try {
                     const res = await fetch(`/Starship/AiSearch?query=${encodeURIComponent(query)}`);
                     const ships = await res.json();
 
-                    table.clear();
-                    ships.forEach(s => {
-                        table.row.add([
-                            `<span class="fw-bold">${s.name}</span>`,
-                            s.model,
-                            `<span class="text-capitalize">${s.starshipClass}</span>`,
-                            s.costInCredits,
-                            s.crew,
-                            s.hyperdriveRating,
-                            s.created,
-                            actionButtons(s.id, s.name)
-                        ]);
+                    // Switch to client-side mode to display AI results
+                    table.destroy();
+                    $('#starshipTable tbody').empty();
+
+                    const clientTable = $('#starshipTable').DataTable({
+                        responsive: true,
+                        data: ships,
+                        columns: [
+                            { data: 'name', render: n => `<span class="fw-bold">${n}</span>` },
+                            { data: 'model' },
+                            { data: 'starshipClass', render: v => `<span class="text-capitalize">${v}</span>` },
+                            { data: 'costInCredits' },
+                            { data: 'crew' },
+                            { data: 'hyperdriveRating' },
+                            { data: 'created' },
+                            { data: 'id', orderable: false, searchable: false, render: (id, _, row) => actionButtons(id, row.name) }
+                        ],
+                        columnDefs: [
+                            { responsivePriority: 1, targets: 0 },
+                            { responsivePriority: 1, targets: 7 }
+                        ],
+                        language: { search: '<i class="bi bi-search"></i>' }
                     });
-                    table.draw();
 
                     status.textContent = `${ships.length} result(s) returned by AI.`;
                     clearBtn.classList.remove('d-none');
+
+                    document.getElementById('aiClearBtn').onclick = function () {
+                        clientTable.destroy();
+                        $('#starshipTable tbody').empty();
+                        document.getElementById('aiSearchInput').value = '';
+                        status.classList.add('d-none');
+                        clearBtn.classList.add('d-none');
+
+                        // Reinitialise server-side table
+                        $('#starshipTable').DataTable({
+                            responsive: true,
+                            serverSide: true,
+                            processing: true,
+                            ajax: '/Starship/DataTable',
+                            columns: [
+                                { data: 'name', render: n => `<span class="fw-bold">${n}</span>` },
+                                { data: 'model' },
+                                { data: 'starshipClass', render: v => `<span class="text-capitalize">${v}</span>` },
+                                { data: 'costInCredits' },
+                                { data: 'crew' },
+                                { data: 'hyperdriveRating' },
+                                { data: 'created' },
+                                { data: 'id', orderable: false, searchable: false, render: (id, _, row) => actionButtons(id, row.name) }
+                            ],
+                            columnDefs: [
+                                { responsivePriority: 1, targets: 0 },
+                                { responsivePriority: 1, targets: 7 }
+                            ],
+                            language: {
+                                search: '<i class="bi bi-search"></i>',
+                                searchPlaceholder: 'Search name, model, class...'
+                            }
+                        });
+                    };
                 } catch {
                     status.textContent = 'AI search failed. Try again.';
                     status.classList.replace('text-info', 'text-danger');
@@ -215,13 +233,6 @@
 
             document.getElementById('aiSearchBtn').addEventListener('click', runAiSearch);
             document.getElementById('aiSearchInput').addEventListener('keydown', e => { if (e.key === 'Enter') runAiSearch(); });
-
-            document.getElementById('aiClearBtn').addEventListener('click', function () {
-                document.getElementById('aiSearchInput').value = '';
-                document.getElementById('aiSearchStatus').classList.add('d-none');
-                this.classList.add('d-none');
-                location.reload();
-            });
         });
 
         function populateDeleteModal(id, name) {

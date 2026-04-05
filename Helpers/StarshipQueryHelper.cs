@@ -1,8 +1,11 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using StarshipRegistry.Data;
 using StarshipRegistry.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
@@ -16,6 +19,18 @@ namespace StarshipRegistry.Helpers
         private readonly HttpClient _http;
         private readonly string _apiKey;
         private readonly string _model;
+        private readonly string _groqUrl;
+        private readonly ApplicationDbContext _context;
+
+        // Use a dictionary to map the SortKey to the specific property on the Starship entity
+        private static readonly Dictionary<string, Expression<Func<Starship, string?>>> SortMappers = new()
+        {
+            { "cost", s => s.CostInCredits },
+            { "crew", s => s.Crew },
+            { "hyperdrive", s => s.HyperdriveRating },
+            { "length", s => s.Length },
+            { "cargo", s => s.CargoCapacity }
+        };
 
         private const string SystemPrompt = @"You are a query parser for a Star Wars starship database.
 Convert the user's natural language query into a JSON object with these fields:
@@ -31,11 +46,13 @@ Important Star Wars context:
 Respond ONLY with raw JSON, no markdown, no explanation.
 Example: {""SortBy"": ""crew"", ""Order"": ""desc"", ""Take"": 10, ""Concept"": """"}";
 
-        public StarshipQueryHelper(IHttpClientFactory httpClientFactory, IConfiguration config)
+        public StarshipQueryHelper(IHttpClientFactory httpClientFactory, IConfiguration config, ApplicationDbContext context)
         {
             _http = httpClientFactory.CreateClient();
             _apiKey = config["Groq:ApiKey"] ?? throw new InvalidOperationException("Groq:ApiKey is not configured.");
             _model = config["Groq:Model"] ?? "llama-3.1-8b-instant";
+            _groqUrl = config["Groq:BaseUrl"] ?? throw new InvalidOperationException("Groq:BaseUrl is not configured.");
+            _context = context;
         }
 
         public async Task<SearchCommand> ParseQueryAsync(string userQuery)
@@ -54,7 +71,7 @@ Example: {""SortBy"": ""crew"", ""Order"": ""desc"", ""Take"": 10, ""Concept"": 
                     max_tokens = 100
                 };
 
-                var request = new HttpRequestMessage(HttpMethod.Post, "https://api.groq.com/openai/v1/chat/completions")
+                var request = new HttpRequestMessage(HttpMethod.Post, _groqUrl)
                 {
                     Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json")
                 };
@@ -83,6 +100,39 @@ Example: {""SortBy"": ""crew"", ""Order"": ""desc"", ""Take"": 10, ""Concept"": 
             {
                 return new SearchCommand { Concept = userQuery };
             }
+        }
+
+        public async Task<List<Starship>> ExecuteSortQueryAsync(SearchCommand command)
+        {
+            // 1. Guard clause
+            if (string.IsNullOrEmpty(command.SortBy) || !SortMappers.ContainsKey(command.SortBy))
+                return new List<Starship>();
+
+            var propertySelector = SortMappers[command.SortBy];
+            var isDescending = command.Order == "desc";
+
+            // 2. Fetch data from DB. 
+            // Because SWAPI uses strings for numeric fields (e.g., "1000" or "unknown"), 
+            // we pull them into memory so we can safely parse them as numbers without blowing up EF Core.
+            var rawShips = await _context.Starships.ToListAsync();
+
+            // 3. Compile the selector into a delegate so we can invoke it in memory
+            var compiledSelector = propertySelector.Compile();
+
+            var query = rawShips
+                .Where(s => {
+                    var val = compiledSelector(s);
+                    return !string.IsNullOrEmpty(val) && val != "unknown";
+                })
+                .OrderBy(s => {
+                    var val = compiledSelector(s);
+                    return double.TryParse(val, out var num) ? num : 0;
+                });
+
+            // Apply descending if necessary
+            var finalQuery = isDescending ? query.Reverse() : query;
+
+            return finalQuery.Take(command.Take).ToList();
         }
 
         public List<object> MapToRows(List<Starship> ships) =>

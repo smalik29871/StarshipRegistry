@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using OllamaSharp;
 using StarshipRegistry.Data;
@@ -17,12 +18,12 @@ namespace StarshipRegistry.Services
         private readonly IEmbeddingGenerator<string, Embedding<float>> _embeddingGenerator;
         private List<(Starship Ship, ReadOnlyMemory<float> Vector)>? _cachedEmbeddings;
 
-        public StarshipSearchService(IServiceScopeFactory scopeFactory)
+        public StarshipSearchService(IServiceScopeFactory scopeFactory, IConfiguration config)
         {
             _scopeFactory = scopeFactory;
-
-            // Fix: Keep using the specialized embedding model for vector generation
-            _embeddingGenerator = new OllamaApiClient(new Uri("http://localhost:11434/"), "nomic-embed-text");
+            var ollamaUrl = config["Ollama:BaseUrl"] ?? "http://localhost:11434/";
+            var embeddingModel = config["Ollama:EmbeddingModel"] ?? "nomic-embed-text";
+            _embeddingGenerator = new OllamaApiClient(new Uri(ollamaUrl), embeddingModel);
         }
 
         public async Task BuildIndexAsync()

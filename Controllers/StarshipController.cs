@@ -39,21 +39,51 @@ namespace StarshipRegistry.Controllers
             _swapiBaseUrl = swapiSettings.Value.BaseUrl;
         }
 
-        public async Task<IActionResult> Index(string searchString, string sortOrder)
+        public async Task<IActionResult> Index()
         {
-            ViewData["CurrentFilter"] = searchString;
-            ViewData["CurrentSort"] = sortOrder;
+            return View();
+        }
 
-            if (string.IsNullOrEmpty(searchString))
-                return View(await _context.Starships.ToListAsync());
+        [HttpGet]
+        public async Task<IActionResult> DataTable([FromQuery] DataTableRequest request)
+        {
+            var search = request.Search?.Value?.Trim().ToLower() ?? "";
 
-            SearchCommand command = await _queryHelper.ParseQueryAsync(searchString);
+            var query = _context.Starships.AsQueryable();
 
-            var ships = string.IsNullOrEmpty(command.SortBy)
-                ? await _searchService.SearchAsync(command.Concept, command.Take)
-                : await ExecuteSortQueryAsync(command);
+            if (!string.IsNullOrEmpty(search))
+                query = query.Where(s =>
+                    s.Name.ToLower().Contains(search) ||
+                    s.Model.ToLower().Contains(search) ||
+                    s.StarshipClass.ToLower().Contains(search));
 
-            return View(ships);
+            var totalRecords = await _context.Starships.CountAsync();
+            var filteredRecords = await query.CountAsync();
+
+            var columnIndex = request.Order?.FirstOrDefault()?.Column ?? 0;
+            var dir = request.Order?.FirstOrDefault()?.Dir ?? "asc";
+
+            query = columnIndex switch
+            {
+                0 => dir == "desc" ? query.OrderByDescending(s => s.Name) : query.OrderBy(s => s.Name),
+                1 => dir == "desc" ? query.OrderByDescending(s => s.Model) : query.OrderBy(s => s.Model),
+                2 => dir == "desc" ? query.OrderByDescending(s => s.StarshipClass) : query.OrderBy(s => s.StarshipClass),
+                3 => dir == "desc" ? query.OrderByDescending(s => s.CostInCredits!.Length).ThenByDescending(s => s.CostInCredits) : query.OrderBy(s => s.CostInCredits!.Length).ThenBy(s => s.CostInCredits),
+                4 => dir == "desc" ? query.OrderByDescending(s => s.Crew!.Length).ThenByDescending(s => s.Crew) : query.OrderBy(s => s.Crew!.Length).ThenBy(s => s.Crew),
+                5 => dir == "desc" ? query.OrderByDescending(s => s.HyperdriveRating!.Length).ThenByDescending(s => s.HyperdriveRating) : query.OrderBy(s => s.HyperdriveRating!.Length).ThenBy(s => s.HyperdriveRating),
+                6 => dir == "desc" ? query.OrderByDescending(s => s.Created) : query.OrderBy(s => s.Created),
+                _ => query.OrderBy(s => s.Name)
+            };
+
+            var ships = await query.Skip(request.Start).Take(request.Length).ToListAsync();
+
+            return Json(new
+            {
+                draw = request.Draw,
+                recordsTotal = totalRecords,
+                recordsFiltered = filteredRecords,
+                data = _queryHelper.MapToRows(ships)
+            });
         }
 
         [HttpGet]
@@ -66,31 +96,9 @@ namespace StarshipRegistry.Controllers
 
             List<Starship> ships = string.IsNullOrEmpty(command.SortBy)
                 ? await _searchService.SearchAsync(command.Concept, command.Take)
-                : await ExecuteSortQueryAsync(command);
+                : await _queryHelper.ExecuteSortQueryAsync(command);
 
             return Json(_queryHelper.MapToRows(ships));
-        }
-
-        private static readonly Dictionary<string, string> SortableColumns = new()
-        {
-            ["cost"]       = "CostInCredits",
-            ["crew"]       = "Crew",
-            ["hyperdrive"] = "HyperdriveRating",
-            ["length"]     = "Length",
-            ["cargo"]      = "CargoCapacity"
-        };
-
-        private async Task<List<Starship>> ExecuteSortQueryAsync(SearchCommand command)
-        {
-            if (!SortableColumns.TryGetValue(command.SortBy, out var column))
-                return new List<Starship>();
-
-            var order = command.Order == "desc" ? "DESC" : "ASC";
-            var sql = $"SELECT * FROM Starships WHERE TRY_CAST([{column}] AS float) IS NOT NULL " +
-                      $"ORDER BY TRY_CAST([{column}] AS float) {order} " +
-                      $"OFFSET 0 ROWS FETCH NEXT {{0}} ROWS ONLY";
-
-            return await _context.Starships.FromSqlRaw(sql, command.Take).ToListAsync();
         }
 
         public async Task<IActionResult> Details(string id, bool edit = false, string returnUrl = "")

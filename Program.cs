@@ -12,18 +12,15 @@ using Microsoft.Extensions.Hosting;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
 builder.Services.AddControllersWithViews();
-
-var swapiSettings = builder.Configuration.GetSection("SwapiSettings").Get<SwapiSettings>() ?? new SwapiSettings();
-builder.Services.AddSingleton(swapiSettings);
+builder.Services.Configure<SwapiSettings>(builder.Configuration.GetSection("SwapiSettings"));
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer("Server=(localdb)\\mssqllocaldb;Database=StarshipRegistry;Trusted_Connection=True;"));
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// Keep as a Singleton to hold the AI vectors in memory!
 builder.Services.AddSingleton<StarshipSearchService>();
 builder.Services.AddHttpClient<SwapiService>();
+builder.Services.AddHttpClient();
 builder.Services.AddScoped<DetailsHelper>();
 builder.Services.AddScoped<StarshipQueryHelper>();
 
