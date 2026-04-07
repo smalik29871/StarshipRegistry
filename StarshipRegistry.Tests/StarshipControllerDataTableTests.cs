@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
 using StarshipRegistry.Configuration;
@@ -30,17 +32,20 @@ public class StarshipControllerDataTableTests
         config.Setup(c => c["Groq:Model"]).Returns("llama-3.1-8b-instant");
         config.Setup(c => c["Groq:BaseUrl"]).Returns("https://api.groq.com/openai/v1/chat/completions");
 
-        var queryHelper = new StarshipQueryHelper(httpFactory.Object, config.Object, context);
+        var queryHelperLogger = new Mock<ILogger<StarshipQueryHelper>>();
+        var queryHelper = new StarshipQueryHelper(httpFactory.Object, config.Object, context, queryHelperLogger.Object, Mock.Of<IMemoryCache>());
         var swapiSettings = Options.Create(new SwapiSettings { BaseUrl = "https://swapi.info/api/" });
 
+        var controllerLogger = new Mock<ILogger<StarshipController>>();
         var controller = new StarshipController(
             null!,
             context,
             null!,
             null!,
             queryHelper,
-            swapiSettings
-        );
+            controllerLogger.Object,
+            swapiSettings,
+            Mock.Of<IMemoryCache>());
 
         return (controller, context);
     }

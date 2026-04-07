@@ -1,48 +1,71 @@
-using System.Diagnostics;
-using System.Linq;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using StarshipRegistry.Data;
 using StarshipRegistry.Models;
+using StarshipRegistry.Models.ViewModels;
+using System;
+using System.Diagnostics;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace StarshipRegistry.Controllers
 {
     public class HomeController : Controller
     {
         private readonly ApplicationDbContext _context;
+        private readonly ILogger<HomeController> _logger;
+        private readonly IConfiguration _config;
 
-        public HomeController(ApplicationDbContext context)
+        public HomeController(ApplicationDbContext context, ILogger<HomeController> logger, IConfiguration config)
         {
             _context = context;
+            _logger = logger;
+            _config = config;
         }
 
+        [Authorize]
         public async Task<IActionResult> Index()
         {
-            // 1. Total Ships count works perfectly regardless of types!
-            ViewBag.TotalShips = await _context.Starships.CountAsync();
+            try
+            {
+                ViewBag.TotalShips = await _context.Starships.CountAsync();
 
-            // Pull the raw string data into memory so we can safely parse it
-            var shipData = await _context.Starships
-                .Select(s => new { s.Name, s.CostInCredits, s.HyperdriveRating })
-                .ToListAsync();
+                var validCostQuery = _context.Starships
+                    .Where(s => s.CostInCredits != null && s.CostInCredits != "" && s.CostInCredits != "unknown");
 
-            // 2. Calculate Total Cost by safely parsing strings to numbers
-            ViewBag.TotalCost = shipData
-                .Where(s => !string.IsNullOrEmpty(s.CostInCredits) && s.CostInCredits != "unknown")
-                .Select(s => long.TryParse(s.CostInCredits, out long cost) ? cost : 0)
-                .Sum();
+                var shipCosts = await validCostQuery
+                    .Select(s => s.CostInCredits)
+                    .ToListAsync();
 
-            // 3. Find the Top Speed Ship by safely parsing strings to decimals
-            ViewBag.TopSpeedShip = shipData
-                .Where(s => !string.IsNullOrEmpty(s.HyperdriveRating) && s.HyperdriveRating != "unknown")
-                .Select(s => new
-                {
-                    s.Name,
-                    Rating = double.TryParse(s.HyperdriveRating, out double rating) ? rating : 0
-                })
-                .OrderByDescending(s => s.Rating)
-                .Select(s => s.Name)
-                .FirstOrDefault() ?? "None";
+                ViewBag.TotalCost = shipCosts
+                    .Select(costStr => long.TryParse(costStr, out long parsedCost) ? parsedCost : 0)
+                    .Sum();
+
+                var speedData = await _context.Starships
+                    .Where(s => s.HyperdriveRating != null && s.HyperdriveRating != "" && s.HyperdriveRating != "unknown")
+                    .Select(s => new { s.Name, s.HyperdriveRating })
+                    .ToListAsync();
+
+                ViewBag.TopSpeedShip = speedData
+                    .Select(s => new
+                    {
+                        s.Name,
+                        Rating = double.TryParse(s.HyperdriveRating, out double rating) ? rating : 0
+                    })
+                    .OrderByDescending(s => s.Rating)
+                    .Select(s => s.Name)
+                    .FirstOrDefault() ?? "None";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to compute dashboard metrics on HomeController.");
+                ViewBag.TotalCost = 0;
+                ViewBag.TopSpeedShip = "N/A";
+            }
+
+            ViewBag.RegistrationCode = _config["Auth:RegistrationCode"] ?? string.Empty;
 
             return View();
         }

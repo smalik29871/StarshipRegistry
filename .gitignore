@@ -1,6 +1,53 @@
-# Ignore all compiled build outputs
+## -------------------------------------------------------
+## .NET / ASP.NET Core
+## -------------------------------------------------------
 [Bb]in/
 [Oo]bj/
-
-# Ignore Visual Studio temporary cache and options
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
 .vs/
+
+## User Secrets (never commit secrets)
+**/secrets.json
+
+## Environment overrides (may contain connection strings or keys)
+appsettings.Development.json
+appsettings.*.json
+!appsettings.json
+
+## -------------------------------------------------------
+## Entity Framework
+## -------------------------------------------------------
+*.db
+*.db-shm
+*.db-wal
+
+## -------------------------------------------------------
+## Docker
+## -------------------------------------------------------
+.env
+
+## -------------------------------------------------------
+## Build output / publish
+## -------------------------------------------------------
+publish/
+*.nupkg
+*.snupkg
+
+## -------------------------------------------------------
+## Test results
+## -------------------------------------------------------
+TestResults/
+coverage/
+*.trx
+*.coverage
+*.coveragexml
+
+## -------------------------------------------------------
+## OS generated
+## -------------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini

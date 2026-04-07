@@ -6,7 +6,7 @@ using StarshipRegistry.Helpers;
 
 namespace StarshipRegistry.Models
 {
-    public class Starship : ITimestampedEntity
+    public class Starship : ISwapiEntity, ITimestampedEntity
     {
         [Key]
         [JsonPropertyName("url")]

@@ -8,17 +8,15 @@
     string mode = ViewData["PageMode"]?.ToString() ?? "Details";
     bool isEditMode = mode == "Edit" || mode == "Create";
     bool isCreateMode = mode == "Create";
+    string returnUrl = ViewData["ReturnUrl"]?.ToString() ?? "";
+    string backUrl = !string.IsNullOrEmpty(returnUrl) ? returnUrl : Url.Action("Index", "Starship") ?? "/";
 
     ViewData["Title"] = isCreateMode ? "Register New Asset" : $"Asset Profile - {Model.Starship.Name}";
 }
 
 <div class="container-fluid mt-4 pb-5">
     <div class="mb-4">
-        @{
-            string returnUrl = ViewData["ReturnUrl"]?.ToString() ?? "";
-            string backUrl = !string.IsNullOrEmpty(returnUrl) ? returnUrl : "javascript:history.back()";
-        }
-        <a href="@backUrl" class="btn btn-outline-secondary btn-sm" onclick="if(this.href === 'javascript:history.back()' && window.history.length <= 1) { window.location.href='/'; return false; }">
+        <a href="@backUrl" class="btn btn-outline-secondary btn-sm">
             <i class="bi bi-arrow-left me-1"></i> Back
         </a>
     </div>
@@ -39,9 +37,6 @@
             </div>
 
             <div class="d-flex align-items-center gap-2">
-                @{
-                    string returnUrl = ViewData["ReturnUrl"]?.ToString() ?? "";
-                }
                 @if (isEditMode)
                 {
                     <button type="submit" class="btn btn-outline-success">
@@ -51,18 +46,6 @@
                     {
                         <a href="@(!string.IsNullOrEmpty(returnUrl) ? returnUrl : Url.Action("Details", "Starship", new { id = Model.Starship.Url?.TrimEnd('/').Split('/').Last() }))" class="btn btn-outline-secondary">Cancel</a>
                     }
-                }
-                else
-                {
-                    <a asp-action="Details" asp-route-id="@Model.Starship.Url?.TrimEnd('/').Split('/').Last()" asp-route-edit="true" class="btn btn-outline-info">
-                        <i class="bi bi-pencil me-1"></i> Edit Asset
-                    </a>
-                    <button class="btn btn-outline-danger"
-                            data-ship-id="@Model.Starship.Url?.TrimEnd('/').Split('/').Last()"
-                            data-ship-name="@Model.Starship.Name"
-                            data-bs-toggle="modal" data-bs-target="#deleteModal">
-                        <i class="bi bi-trash me-1"></i> Delete
-                    </button>
                 }
 
                 <div class="badge bg-dark border border-info p-3">
@@ -75,6 +58,7 @@
         @if (!isCreateMode)
         {
             <input type="hidden" name="Url" value="@Model.Starship.Url" />
+            <input type="hidden" name="Created" value="@Model.Starship.Created?.ToString("o")" />
         }
         <input type="hidden" name="returnUrl" value="@(ViewData["ReturnUrl"]?.ToString() ?? "")" />
 
@@ -312,33 +296,3 @@
         </div>
     </form>
 </div>
-
-<div class="modal fade" id="deleteModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content bg-dark text-white border border-danger">
-            <div class="modal-header border-secondary">
-                <h5 class="modal-title text-danger">⚠️ Decertify Asset</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <form asp-action="Delete" method="post">
-                <div class="modal-body">
-                    <input type="hidden" name="id" id="delete-id" />
-                    <p>Are you certain you want to remove <span id="delete-name" class="fw-bold text-warning"></span> from the Imperial registry? This cannot be undone.</p>
-                </div>
-                <div class="modal-footer border-secondary">
-                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-outline-danger">Confirm Deletion</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-@section Scripts {
-    <script>
-        document.getElementById('deleteModal').addEventListener('show.bs.modal', function (e) {
-            document.getElementById('delete-id').value = e.relatedTarget.dataset.shipId;
-            document.getElementById('delete-name').innerText = e.relatedTarget.dataset.shipName;
-        });
-    </script>
-}

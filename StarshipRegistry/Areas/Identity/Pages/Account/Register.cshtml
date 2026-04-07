@@ -1,0 +1,71 @@
+@page
+@model RegisterModel
+@{
+    ViewData["Title"] = "Enlist in the Empire";
+}
+
+<div class="row justify-content-center mt-5">
+    <div class="col-md-5 col-lg-4">
+
+        <div class="text-center mb-4">
+            <i class="bi bi-person-fill-add display-2 text-warning sw-glow-icon"></i>
+            <h1 class="mt-3 fs-4 text-warning">Enlist in the Empire</h1>
+            <p class="text-secondary small letter-spaced">Register your credentials with the Imperial Command Network</p>
+        </div>
+
+        <div class="card p-4">
+            <form id="registerForm" asp-route-returnUrl="@Model.ReturnUrl" method="post">
+                <div asp-validation-summary="ModelOnly" class="alert alert-danger small py-2" role="alert"></div>
+
+                @* honeypot *@
+                <div aria-hidden="true" class="d-none">
+                    <label for="hpt_url">Leave blank</label>
+                    <input type="text" id="hpt_url" name="hpt_url" tabindex="-1" autocomplete="off" />
+                </div>
+
+                <div class="mb-3">
+                    <label asp-for="Input.Email" class="form-label"></label>
+                    <input asp-for="Input.Email" class="form-control" placeholder="agent@empire.com" autocomplete="username" />
+                    <span asp-validation-for="Input.Email" class="text-danger small"></span>
+                </div>
+
+                <div class="mb-3">
+                    <label asp-for="Input.Password" class="form-label"></label>
+                    <input asp-for="Input.Password" class="form-control" placeholder="Min 8 chars, 1 uppercase, 1 digit" autocomplete="new-password" />
+                    <span asp-validation-for="Input.Password" class="text-danger small"></span>
+                </div>
+
+                <div class="mb-3">
+                    <label asp-for="Input.ConfirmPassword" class="form-label"></label>
+                    <input asp-for="Input.ConfirmPassword" class="form-control" placeholder="Confirm password" autocomplete="new-password" />
+                    <span asp-validation-for="Input.ConfirmPassword" class="text-danger small"></span>
+                </div>
+
+                <div class="mb-4">
+                    <label asp-for="Input.RegistrationCode" class="form-label"></label>
+                    <input asp-for="Input.RegistrationCode" class="form-control" placeholder="Provided by Imperial Command" autocomplete="off" />
+                    <div class="mt-1 text-secondary" style="font-size:0.7rem;letter-spacing:1px;">
+                        <i class="bi bi-shield-lock me-1"></i>Required to prevent unauthorised enlistment
+                    </div>
+                    <span asp-validation-for="Input.RegistrationCode" class="text-danger small"></span>
+                </div>
+
+                <button type="submit" class="btn btn-outline-primary w-100">
+                    <i class="bi bi-person-check me-2"></i>Submit Credentials
+                </button>
+            </form>
+
+            <hr class="border-secondary mt-4" />
+
+            <p class="text-center small mt-2 mb-0">
+                Already enlisted?
+                <a asp-page="./Login" class="text-warning">Access the Terminal</a>
+            </p>
+        </div>
+
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="~/Views/Shared/_ValidationScriptsPartial.cshtml" />
+}

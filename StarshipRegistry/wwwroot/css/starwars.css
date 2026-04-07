@@ -77,3 +77,65 @@ h1, h2, h3, h4, .navbar-brand {
     color: #000 !important;
     box-shadow: 0 0 15px var(--sw-glow);
 }
+
+/* --- Form Controls (Identity pages) --- */
+
+.form-control,
+.form-select {
+    background-color: var(--sw-card-bg) !important;
+    border: 1px solid #45f3ff !important;
+    color: var(--sw-text) !important;
+    border-radius: 0;
+}
+
+.form-control:focus,
+.form-select:focus {
+    background-color: var(--sw-card-bg) !important;
+    border-color: var(--sw-yellow) !important;
+    color: #fff !important;
+    box-shadow: 0 0 8px var(--sw-glow) !important;
+}
+
+.form-control::placeholder {
+    color: #4a5568 !important;
+}
+
+.form-label {
+    color: var(--sw-yellow) !important;
+    font-family: 'Orbitron', sans-serif !important;
+    font-size: 0.68rem !important;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+}
+
+.form-check-input {
+    background-color: var(--sw-card-bg) !important;
+    border-color: #45f3ff !important;
+}
+
+.form-check-input:checked {
+    background-color: var(--sw-yellow) !important;
+    border-color: var(--sw-yellow) !important;
+}
+
+.form-check-label {
+    color: var(--sw-text) !important;
+}
+
+.alert-danger {
+    background-color: rgba(255, 71, 87, 0.1) !important;
+    border-color: #ff4757 !important;
+    color: #ff4757 !important;
+}
+
+/* Glowing icon used on auth pages */
+.sw-glow-icon {
+    filter: drop-shadow(0 0 12px rgba(255, 227, 0, 0.6));
+}
+
+/* Uppercase spaced subtitle text */
+.letter-spaced {
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    font-size: 0.7rem;
+}

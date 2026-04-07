@@ -6,7 +6,7 @@ using StarshipRegistry.Helpers;
 
 namespace StarshipRegistry.Models
 {
-    public class Planet : ITimestampedEntity // 👈 Added the interface here
+    public class Planet : ISwapiEntity, ITimestampedEntity
     {
         [JsonPropertyName("name")]
         public string Name { get; set; } = string.Empty;

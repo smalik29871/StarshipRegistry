@@ -16,7 +16,8 @@ namespace StarshipRegistry.Services
     {
         private readonly IServiceScopeFactory _scopeFactory;
         private readonly IEmbeddingGenerator<string, Embedding<float>> _embeddingGenerator;
-        private List<(Starship Ship, ReadOnlyMemory<float> Vector)>? _cachedEmbeddings;
+        private volatile List<(Starship Ship, ReadOnlyMemory<float> Vector)>? _cachedEmbeddings;
+        private readonly SemaphoreSlim _buildLock = new SemaphoreSlim(1, 1);
 
         public StarshipSearchService(IServiceScopeFactory scopeFactory, IConfiguration config)
         {
@@ -26,39 +27,86 @@ namespace StarshipRegistry.Services
             _embeddingGenerator = new OllamaApiClient(new Uri(ollamaUrl), embeddingModel);
         }
 
-        public async Task BuildIndexAsync()
+        public virtual async Task BuildIndexAsync()
         {
-            using (var scope = _scopeFactory.CreateScope())
+            await _buildLock.WaitAsync();
+            try
             {
+                using var scope = _scopeFactory.CreateScope();
                 var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
                 var starships = await context.Starships.ToListAsync();
 
-                _cachedEmbeddings = new List<(Starship, ReadOnlyMemory<float>)>();
-
+                var newEmbeddings = new List<(Starship, ReadOnlyMemory<float>)>(starships.Count);
                 foreach (var ship in starships)
                 {
-                    string searchText = $"search_document: {ship.Name} {ship.Model} {ship.Manufacturer} " +
-                        $"class {ship.StarshipClass} hyperdrive {ship.HyperdriveRating} " +
-                        $"crew {ship.Crew} passengers {ship.Passengers} " +
-                        $"length {ship.Length} speed {ship.MaxAtmospheringSpeed} " +
-                        $"cargo {ship.CargoCapacity} MGLT {ship.Mglt} consumables {ship.Consumables}";
-
-                    var generatedEmbeddings = await _embeddingGenerator.GenerateAsync(new[] { searchText });
-                    _cachedEmbeddings.Add((ship, generatedEmbeddings[0].Vector));
+                    try
+                    {
+                        var generated = await _embeddingGenerator.GenerateAsync(new[] { BuildSearchText(ship) });
+                        newEmbeddings.Add((ship, generated[0].Vector));
+                    }
+                    catch (Exception) when (newEmbeddings.Count == 0)
+                    {
+                        return;
+                    }
                 }
+
+                _cachedEmbeddings = newEmbeddings;
+            }
+            finally
+            {
+                _buildLock.Release();
             }
         }
 
-        public async Task<List<Starship>> SearchAsync(string query, int take = 10)
+        public virtual async Task AddToIndexAsync(Starship ship)
         {
-            if (_cachedEmbeddings == null || !_cachedEmbeddings.Any())
+            if (_cachedEmbeddings == null) return;
+
+            await _buildLock.WaitAsync();
+            try
+            {
+                var generated = await _embeddingGenerator.GenerateAsync(new[] { BuildSearchText(ship) });
+                var current = _cachedEmbeddings;
+                _cachedEmbeddings = current
+                    .Where(e => e.Ship.Url != ship.Url)
+                    .Append((ship, generated[0].Vector))
+                    .ToList();
+            }
+            catch (Exception)
+            {
+                // Ollama unavailable — index unchanged
+            }
+            finally
+            {
+                _buildLock.Release();
+            }
+        }
+
+        public virtual void RemoveFromIndex(string url)
+        {
+            var current = _cachedEmbeddings;
+            if (current == null) return;
+            _cachedEmbeddings = current.Where(e => e.Ship.Url != url).ToList();
+        }
+
+        private static string BuildSearchText(Starship ship) =>
+            $"search_document: {ship.Name} {ship.Model} {ship.Manufacturer} " +
+            $"class {ship.StarshipClass} hyperdrive {ship.HyperdriveRating} " +
+            $"crew {ship.Crew} passengers {ship.Passengers} " +
+            $"length {ship.Length} speed {ship.MaxAtmospheringSpeed} " +
+            $"cargo {ship.CargoCapacity} MGLT {ship.Mglt} consumables {ship.Consumables}";
+
+        public virtual async Task<List<Starship>> SearchAsync(string query, int take = 10)
+        {
+            var snapshot = _cachedEmbeddings;
+            if (snapshot == null || !snapshot.Any())
                 return new List<Starship>();
 
             string searchPrompt = $"search_query: {query}";
             var queryEmbeddings = await _embeddingGenerator.GenerateAsync(new[] { searchPrompt });
             var queryVector = queryEmbeddings[0].Vector;
 
-            return _cachedEmbeddings
+            return snapshot
                 .Select(item => new
                 {
                     Starship = item.Ship,
