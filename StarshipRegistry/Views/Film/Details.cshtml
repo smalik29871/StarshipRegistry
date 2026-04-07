@@ -15,9 +15,9 @@
 <div class="container mt-4 pb-5">
     <div class="mb-4">
         @{
-            string backUrl = !string.IsNullOrEmpty(returnUrl) ? returnUrl : "javascript:history.back()";
+            string backUrl = !string.IsNullOrEmpty(returnUrl) ? returnUrl : Url.Action("Index", "Starship") ?? "/";
         }
-        <a href="@backUrl" class="btn btn-outline-secondary btn-sm" onclick="if(this.href === 'javascript:history.back()' && window.history.length <= 1) { window.location.href='/'; return false; }">
+        <a href="@backUrl" class="btn btn-outline-secondary btn-sm">
             <i class="bi bi-arrow-left me-1"></i> Back
         </a>
     </div>

@@ -36,6 +36,18 @@ namespace StarshipRegistry.Controllers
             }
 
             ViewData["PageMode"] = edit ? "Edit" : "Details";
+
+            if (string.IsNullOrEmpty(returnUrl) && !edit)
+            {
+                var referer = Request.Headers["Referer"].FirstOrDefault() ?? "";
+                if (!string.IsNullOrEmpty(referer) && Uri.TryCreate(referer, UriKind.Absolute, out var refererUri))
+                {
+                    var localReferer = refererUri.PathAndQuery;
+                    if (Url.IsLocalUrl(localReferer) && !localReferer.StartsWith(Request.Path.Value ?? "", StringComparison.OrdinalIgnoreCase))
+                        returnUrl = localReferer;
+                }
+            }
+
             ViewData["ReturnUrl"] = returnUrl;
 
             await PopulateFormLookupsAsync();
@@ -57,8 +69,8 @@ namespace StarshipRegistry.Controllers
             {
                 ViewData["PageMode"] = "Edit";
                 ViewData["ReturnUrl"] = returnUrl;
-                species.People ??= new List<string>();
-                species.Films ??= new List<string>();
+                species.People = selectedPeople?.Where(p => !string.IsNullOrEmpty(p)).ToList() ?? new List<string>();
+                species.Films = selectedFilms?.Where(f => !string.IsNullOrEmpty(f)).ToList() ?? new List<string>();
 
                 await PopulateFormLookupsAsync();
 
@@ -82,7 +94,7 @@ namespace StarshipRegistry.Controllers
 
             var numericId = species.Url?.TrimEnd('/').Split('/').Last();
 
-            return !string.IsNullOrEmpty(returnUrl)
+            return Url.IsLocalUrl(returnUrl)
                 ? Redirect(returnUrl)
                 : RedirectToAction(nameof(Details), new { id = numericId });
         }

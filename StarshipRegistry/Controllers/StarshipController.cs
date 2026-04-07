@@ -75,8 +75,8 @@ namespace StarshipRegistry.Controllers
             if (!ModelState.IsValid)
             {
                 ViewData["PageMode"] = "Create";
-                ship.Films ??= new List<string>();
-                ship.Pilots ??= new List<string>();
+                ship.Films = selectedFilms?.Where(f => !string.IsNullOrEmpty(f)).ToList() ?? new List<string>();
+                ship.Pilots = selectedPilots?.Where(p => !string.IsNullOrEmpty(p)).ToList() ?? new List<string>();
                 await PopulateFormLookupsAsync();
                 var viewModel = new StarshipDetailsViewModel
                 {
@@ -227,8 +227,8 @@ namespace StarshipRegistry.Controllers
             {
                 ViewData["PageMode"] = "Edit";
                 ViewData["ReturnUrl"] = returnUrl;
-                ship.Films ??= new List<string>();
-                ship.Pilots ??= new List<string>();
+                ship.Films = selectedFilms?.Where(f => !string.IsNullOrEmpty(f)).ToList() ?? new List<string>();
+                ship.Pilots = selectedPilots?.Where(p => !string.IsNullOrEmpty(p)).ToList() ?? new List<string>();
 
                 await PopulateFormLookupsAsync();
 
@@ -290,7 +290,9 @@ namespace StarshipRegistry.Controllers
         [HttpPost]
         public async Task<IActionResult> Delete(string id)
         {
-            var ship = await _context.Starships.FirstOrDefaultAsync(s => s.Url != null && s.Url.EndsWith($"/starships/{id}") || s.Url!.EndsWith($"/starships/{id}/"));
+            var ship = await _context.Starships.FirstOrDefaultAsync(s =>
+                s.Url != null &&
+                (s.Url.EndsWith($"/starships/{id}") || s.Url.EndsWith($"/starships/{id}/")));
 
             if (ship != null)
             {
@@ -335,9 +337,15 @@ namespace StarshipRegistry.Controllers
             {
                 "model" => descending ? query.OrderByDescending(s => s.Model) : query.OrderBy(s => s.Model),
                 "starshipClass" => descending ? query.OrderByDescending(s => s.StarshipClass) : query.OrderBy(s => s.StarshipClass),
-                "costInCredits" => descending ? query.OrderByDescending(s => s.CostInCredits) : query.OrderBy(s => s.CostInCredits),
-                "crew" => descending ? query.OrderByDescending(s => s.Crew) : query.OrderBy(s => s.Crew),
-                "hyperdriveRating" => descending ? query.OrderByDescending(s => s.HyperdriveRating) : query.OrderBy(s => s.HyperdriveRating),
+                "costInCredits" => descending
+                    ? query.OrderByDescending(s => (s.CostInCredits ?? "").Length).ThenByDescending(s => s.CostInCredits)
+                    : query.OrderBy(s => (s.CostInCredits ?? "").Length).ThenBy(s => s.CostInCredits),
+                "crew" => descending
+                    ? query.OrderByDescending(s => (s.Crew ?? "").Length).ThenByDescending(s => s.Crew)
+                    : query.OrderBy(s => (s.Crew ?? "").Length).ThenBy(s => s.Crew),
+                "hyperdriveRating" => descending
+                    ? query.OrderByDescending(s => (s.HyperdriveRating ?? "").Length).ThenByDescending(s => s.HyperdriveRating)
+                    : query.OrderBy(s => (s.HyperdriveRating ?? "").Length).ThenBy(s => s.HyperdriveRating),
                 "created" => descending ? query.OrderByDescending(s => s.Created) : query.OrderBy(s => s.Created),
                 _ => descending ? query.OrderByDescending(s => s.Name) : query.OrderBy(s => s.Name)
             };

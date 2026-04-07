@@ -36,6 +36,18 @@ namespace StarshipRegistry.Controllers
             }
 
             ViewData["PageMode"] = edit ? "Edit" : "Details";
+
+            if (string.IsNullOrEmpty(returnUrl) && !edit)
+            {
+                var referer = Request.Headers["Referer"].FirstOrDefault() ?? "";
+                if (!string.IsNullOrEmpty(referer) && Uri.TryCreate(referer, UriKind.Absolute, out var refererUri))
+                {
+                    var localReferer = refererUri.PathAndQuery;
+                    if (Url.IsLocalUrl(localReferer) && !localReferer.StartsWith(Request.Path.Value ?? "", StringComparison.OrdinalIgnoreCase))
+                        returnUrl = localReferer;
+                }
+            }
+
             ViewData["ReturnUrl"] = returnUrl;
 
             await PopulateFormLookupsAsync();
