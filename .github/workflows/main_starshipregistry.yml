@@ -62,4 +62,13 @@ jobs:
           app-name: 'StarshipRegistry'
           slot-name: 'Production'
           package: .
+
+      - name: Apply app settings
+        uses: azure/appservice-settings@v1
+        with:
+          app-name: 'StarshipRegistry'
+          app-settings-json: |
+            [
+              { "name": "Groq__ApiKey", "value": "${{ secrets.GROQ_API_KEY }}", "slotSetting": false }
+            ]
           
