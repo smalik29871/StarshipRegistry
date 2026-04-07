@@ -4,9 +4,7 @@ An Imperial-themed terminal dashboard built with **ASP.NET Core MVC** and **Boot
 
 ---
 
-## 👋 Reviewer Quick Start
-
-> Everything a hiring manager needs to run and log in to the app in under 5 minutes.
+## 🚀 Quick Start
 
 **Prerequisites:** [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) · SQL Server LocalDB (ships with Visual Studio)
 
@@ -23,11 +21,11 @@ Then open the URL shown in your console and:
 3. Enter the Imperial Access Code: **`ImperialFleet001`**
 4. Submit — you'll be signed in and landed on the dashboard
 
-> 💡 The access code is intentional security. It prevents open public sign-ups. See the [Authentication](#-authentication) section for more detail.
+> 💡 The access code prevents open public sign-ups. See the [Authentication](#-authentication) section for more detail.
 
 ---
 
-## 🚀 Key Features
+## ✨ Key Features
 
 - **Imperial UI Theme** — Custom dark-mode terminal aesthetic with high-contrast glowing elements, built on the `Orbitron` and `Share Tech Mono` typefaces from Google Fonts.
 - **HoloNet AI Search** — Natural language queries (e.g. *"show me the ship with the highest crew count"* or *"fastest hyperdrive"*) are parsed by the **Groq API** (`llama-3.1-8b-instant`) into structured commands, then executed as typed EF Core queries against SQL Server.
