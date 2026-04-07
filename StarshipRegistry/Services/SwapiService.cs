@@ -105,25 +105,24 @@ namespace StarshipRegistry.Services
             await SyncResourceAsync<Starship>($"{_swapiSettings.BaseUrl}starships", MapToEntity);
         }
 
-        private async Task SyncResourceAsync<T>(string url, Action<T> mapAction) where T : class
+        private async Task SyncResourceAsync<T>(string url, Action<T, Dictionary<string, T>> mapAction) where T : class, ISwapiEntity, ITimestampedEntity
         {
             try
             {
                 _context.ChangeTracker.Clear();
 
                 var jsonString = await _httpClient.GetStringAsync(url);
-
                 var results = JsonSerializer.Deserialize<List<T>>(jsonString, _jsonOptions);
+                if (results == null) return;
 
-                if (results != null)
-                {
-                    foreach (var item in results)
-                    {
-                        mapAction(item);
-                    }
-                    await _context.SaveChangesAsync();
-                    _logger.LogInformation("Successfully synced {Count} items from {Url}", results.Count, url);
-                }
+                var existingList = await _context.Set<T>().ToListAsync();
+                var existing = existingList.ToDictionary(e => e.Url);
+
+                foreach (var item in results)
+                    mapAction(item, existing);
+
+                await _context.SaveRawAsync();
+                _logger.LogInformation("Successfully synced {Count} items from {Url}", results.Count, url);
             }
             catch (Exception ex)
             {
@@ -134,16 +133,16 @@ namespace StarshipRegistry.Services
 
         #region PRIVATE MAPPERS
 
-        private void MapToEntity(Starship apiData)
+        private void MapToEntity(Starship apiData, Dictionary<string, Starship> existing)
         {
-            var existing = _context.Starships.FirstOrDefault(s => s.Url == apiData.Url);
-
-            if (existing != null)
+            if (existing.TryGetValue(apiData.Url, out var tracked))
             {
-                _context.Entry(existing).CurrentValues.SetValues(apiData);
-                existing.Pilots = apiData.Pilots;
-                existing.Films = apiData.Films;
-                _context.Starships.Update(existing);
+                if (tracked.Edited.HasValue && apiData.Edited.HasValue && apiData.Edited <= tracked.Edited)
+                    return;
+
+                _context.Entry(tracked).CurrentValues.SetValues(apiData);
+                tracked.Pilots = apiData.Pilots;
+                tracked.Films = apiData.Films;
             }
             else
             {
@@ -151,16 +150,17 @@ namespace StarshipRegistry.Services
             }
         }
 
-        private void MapToEntity(Film apiData)
+        private void MapToEntity(Film apiData, Dictionary<string, Film> existing)
         {
-            var existing = _context.Films.FirstOrDefault(f => f.Url == apiData.Url);
-            if (existing != null)
+            if (existing.TryGetValue(apiData.Url, out var tracked))
             {
-                _context.Entry(existing).CurrentValues.SetValues(apiData);
-                existing.Characters = apiData.Characters;
-                existing.Planets = apiData.Planets;
-                existing.Starships = apiData.Starships;
-                _context.Films.Update(existing);
+                if (tracked.Edited.HasValue && apiData.Edited.HasValue && apiData.Edited <= tracked.Edited)
+                    return;
+
+                _context.Entry(tracked).CurrentValues.SetValues(apiData);
+                tracked.Characters = apiData.Characters;
+                tracked.Planets = apiData.Planets;
+                tracked.Starships = apiData.Starships;
             }
             else
             {
@@ -168,14 +168,15 @@ namespace StarshipRegistry.Services
             }
         }
 
-        private void MapToEntity(Planet apiData)
+        private void MapToEntity(Planet apiData, Dictionary<string, Planet> existing)
         {
-            var existing = _context.Planets.FirstOrDefault(p => p.Url == apiData.Url);
-            if (existing != null)
+            if (existing.TryGetValue(apiData.Url, out var tracked))
             {
-                _context.Entry(existing).CurrentValues.SetValues(apiData);
-                existing.Films = apiData.Films;
-                _context.Planets.Update(existing);
+                if (tracked.Edited.HasValue && apiData.Edited.HasValue && apiData.Edited <= tracked.Edited)
+                    return;
+
+                _context.Entry(tracked).CurrentValues.SetValues(apiData);
+                tracked.Films = apiData.Films;
             }
             else
             {
@@ -183,15 +184,16 @@ namespace StarshipRegistry.Services
             }
         }
 
-        private void MapToEntity(Character apiData)
+        private void MapToEntity(Character apiData, Dictionary<string, Character> existing)
         {
-            var existing = _context.Characters.FirstOrDefault(c => c.Url == apiData.Url);
-            if (existing != null)
+            if (existing.TryGetValue(apiData.Url, out var tracked))
             {
-                _context.Entry(existing).CurrentValues.SetValues(apiData);
-                existing.Films = apiData.Films;
-                existing.Starships = apiData.Starships;
-                _context.Characters.Update(existing);
+                if (tracked.Edited.HasValue && apiData.Edited.HasValue && apiData.Edited <= tracked.Edited)
+                    return;
+
+                _context.Entry(tracked).CurrentValues.SetValues(apiData);
+                tracked.Films = apiData.Films;
+                tracked.Starships = apiData.Starships;
             }
             else
             {
@@ -199,15 +201,16 @@ namespace StarshipRegistry.Services
             }
         }
 
-        private void MapToEntity(Species apiData)
+        private void MapToEntity(Species apiData, Dictionary<string, Species> existing)
         {
-            var existing = _context.Species.FirstOrDefault(s => s.Url == apiData.Url);
-            if (existing != null)
+            if (existing.TryGetValue(apiData.Url, out var tracked))
             {
-                _context.Entry(existing).CurrentValues.SetValues(apiData);
-                existing.People = apiData.People;
-                existing.Films = apiData.Films;
-                _context.Species.Update(existing);
+                if (tracked.Edited.HasValue && apiData.Edited.HasValue && apiData.Edited <= tracked.Edited)
+                    return;
+
+                _context.Entry(tracked).CurrentValues.SetValues(apiData);
+                tracked.People = apiData.People;
+                tracked.Films = apiData.Films;
             }
             else
             {

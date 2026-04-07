@@ -1,5 +1,7 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using StarshipRegistry.Configuration;
@@ -24,6 +26,7 @@ namespace StarshipRegistry.Controllers
         private readonly StarshipSearchService _searchService;
         private readonly StarshipQueryHelper _queryHelper;
         private readonly ILogger<StarshipController> _logger;
+        private readonly IMemoryCache _cache;
         private readonly string _swapiBaseUrl;
 
         public StarshipController(
@@ -33,7 +36,8 @@ namespace StarshipRegistry.Controllers
             StarshipSearchService searchService,
             StarshipQueryHelper queryHelper,
             ILogger<StarshipController> logger,
-            IOptions<SwapiSettings> swapiSettings)
+            IOptions<SwapiSettings> swapiSettings,
+            IMemoryCache cache)
         {
             _swapiService = swapiService;
             _context = context;
@@ -41,14 +45,21 @@ namespace StarshipRegistry.Controllers
             _searchService = searchService;
             _queryHelper = queryHelper;
             _logger = logger;
+            _cache = cache;
             _swapiBaseUrl = swapiSettings.Value.BaseUrl;
         }
 
         public async Task<IActionResult> Index()
         {
+            if (_cache.TryGetValue<DateTime>("seed:cooldown", out var expiry))
+            {
+                var remaining = (int)Math.Ceiling(Math.Max(0, (expiry - DateTime.UtcNow).TotalSeconds));
+                ViewBag.SyncCooldownSeconds = remaining;
+            }
             return View();
         }
 
+        [Authorize]
         [HttpGet]
         public async Task<IActionResult> Create()
         {
@@ -57,6 +68,7 @@ namespace StarshipRegistry.Controllers
             return View("Details", new StarshipDetailsViewModel());
         }
 
+        [Authorize]
         [HttpPost]
         public async Task<IActionResult> Create(Starship ship, [FromForm] string[] selectedPilots, [FromForm] string[] selectedFilms)
         {
@@ -78,18 +90,18 @@ namespace StarshipRegistry.Controllers
             ship.Pilots = selectedPilots?.Where(p => !string.IsNullOrEmpty(p)).ToList() ?? new List<string>();
             ship.Films = selectedFilms?.Where(f => !string.IsNullOrEmpty(f)).ToList() ?? new List<string>();
 
-            // Generate a numeric ID well above SWAPI's range (~36 ships) to avoid collisions.
-            var existingIds = await _context.Starships.Select(s => s.Url).ToListAsync();
-            var maxId = existingIds
-                .Select(url => int.TryParse(url?.TrimEnd('/').Split('/').Last(), out var n) ? n : 0)
-                .DefaultIfEmpty(0)
-                .Max();
+            var topUrl = await _context.Starships
+                .OrderByDescending(s => s.Url.Length)
+                .ThenByDescending(s => s.Url)
+                .Select(s => s.Url)
+                .FirstOrDefaultAsync();
+            var maxId = int.TryParse(topUrl?.TrimEnd('/').Split('/').Last(), out var n) ? n : 0;
             var newId = Math.Max(maxId + 1, 10000);
             ship.Url = $"{_swapiBaseUrl}starships/{newId}/";
 
             _context.Starships.Add(ship);
             await _context.SaveChangesAsync();
-            await _searchService.BuildIndexAsync();
+            await _searchService.AddToIndexAsync(ship);
 
             TempData["Message"] = $"{ship.Name} was registered successfully!";
             return RedirectToAction(nameof(Details), new { id = newId });
@@ -152,9 +164,23 @@ namespace StarshipRegistry.Controllers
                 var command = await _queryHelper.ParseQueryAsync(query);
                 var take = command.Take > 0 ? command.Take : 10;
 
-                List<Starship> ships = !string.IsNullOrWhiteSpace(command.SortBy)
-                    ? await _queryHelper.ExecuteQueryAsync(command)
-                    : await _searchService.SearchAsync(command.Concept, take);
+                List<Starship> ships;
+                if (!string.IsNullOrWhiteSpace(command.SortBy))
+                {
+                    ships = await _queryHelper.ExecuteQueryAsync(command);
+                }
+                else
+                {
+                    ships = await _searchService.SearchAsync(command.Concept, take);
+                    if (ships.Count == 0 && !string.IsNullOrWhiteSpace(command.Concept))
+                    {
+                        var kw = command.Concept;
+                        ships = await _context.Starships
+                            .Where(s => s.Name.Contains(kw) || s.Model.Contains(kw) || s.StarshipClass.Contains(kw))
+                            .Take(take)
+                            .ToListAsync();
+                    }
+                }
 
                 return Json(_queryHelper.MapToRows(ships));
             }
@@ -193,6 +219,7 @@ namespace StarshipRegistry.Controllers
             return View("Details", viewModel);
         }
 
+        [Authorize]
         [HttpPost]
         public async Task<IActionResult> Edit(Starship ship, [FromForm] string[] selectedPilots, [FromForm] string[] selectedFilms, string returnUrl = "")
         {
@@ -220,6 +247,7 @@ namespace StarshipRegistry.Controllers
 
             _context.Update(ship);
             await _context.SaveChangesAsync();
+            await _searchService.AddToIndexAsync(ship);
 
             TempData["Message"] = $"{ship.Name} was successfully updated!";
 
@@ -230,9 +258,19 @@ namespace StarshipRegistry.Controllers
                 : RedirectToAction(nameof(Details), new { id = numericId });
         }
 
+        [Authorize]
         [HttpPost]
         public async Task<IActionResult> Seed()
         {
+            const string cooldownKey = "seed:cooldown";
+            if (_cache.TryGetValue(cooldownKey, out _))
+            {
+                TempData["Error"] = "Sync is on cooldown. Please wait 10 minutes before syncing again.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            _cache.Set(cooldownKey, DateTime.UtcNow.AddMinutes(10), TimeSpan.FromMinutes(10));
+
             try
             {
                 await _swapiService.SyncAllDataAsync();
@@ -248,10 +286,10 @@ namespace StarshipRegistry.Controllers
             return RedirectToAction(nameof(Index));
         }
 
+        [Authorize]
         [HttpPost]
         public async Task<IActionResult> Delete(string id)
         {
-            // Human fix: Instead of guessing the base URL to match strings, we look up the entity by checking the URL ending.
             var ship = await _context.Starships.FirstOrDefaultAsync(s => s.Url != null && s.Url.EndsWith($"/starships/{id}") || s.Url!.EndsWith($"/starships/{id}/"));
 
             if (ship != null)
@@ -259,8 +297,7 @@ namespace StarshipRegistry.Controllers
                 _context.Starships.Remove(ship);
                 await _context.SaveChangesAsync();
 
-                // Rebuild search index to keep things accurate
-                await _searchService.BuildIndexAsync();
+                _searchService.RemoveFromIndex(ship.Url);
 
                 TempData["Message"] = $"{ship.Name} was removed from the registry.";
             }

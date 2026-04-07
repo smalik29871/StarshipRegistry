@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using StarshipRegistry.Helpers;
@@ -30,7 +31,8 @@ public class StarshipQueryHelperTests
             httpFactory.Object,
             config.Object,
             context,
-            NullLogger<StarshipQueryHelper>.Instance);
+            NullLogger<StarshipQueryHelper>.Instance,
+            Mock.Of<IMemoryCache>());
     }
 
     [Fact]

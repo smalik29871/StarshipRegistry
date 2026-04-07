@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using StarshipRegistry.Configuration;
 using StarshipRegistry.Data;
@@ -13,10 +14,31 @@ using Microsoft.Extensions.Hosting;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllersWithViews();
+builder.Services.AddRazorPages();
+builder.Services.AddMemoryCache();
+
+builder.Services.AddDefaultIdentity<IdentityUser>(options =>
+{
+    options.SignIn.RequireConfirmedAccount = false;
+    options.Password.RequireDigit = true;
+    options.Password.RequiredLength = 8;
+    options.Password.RequireUppercase = true;
+    options.Password.RequireNonAlphanumeric = false;
+})
+.AddEntityFrameworkStores<ApplicationDbContext>();
 builder.Services.Configure<SwapiSettings>(builder.Configuration.GetSection("SwapiSettings"));
 
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? string.Empty;
+var isSqlite = connectionString.Contains("Data Source=", StringComparison.OrdinalIgnoreCase)
+             && !connectionString.Contains("Server=", StringComparison.OrdinalIgnoreCase);
+
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+{
+    if (isSqlite)
+        options.UseSqlite(connectionString);
+    else
+        options.UseSqlServer(connectionString);
+});
 
 builder.Services.AddSingleton<StarshipSearchService>();
 builder.Services.AddHttpClient<SwapiService>();
@@ -26,7 +48,6 @@ builder.Services.AddScoped<StarshipQueryHelper>();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Home/Error");
@@ -36,30 +57,58 @@ if (!app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseRouting();
+app.UseAuthentication();
 app.UseAuthorization();
+
+app.MapRazorPages();
 
 app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Home}/{action=Index}/{id?}");
 
-// Database Migration, Seeding, and AI Index Building at Startup
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
     try
     {
         var context = services.GetRequiredService<ApplicationDbContext>();
-        var searchService = services.GetRequiredService<StarshipSearchService>(); 
+        var searchService = services.GetRequiredService<StarshipSearchService>();
 
-        // Safely run async database operations during synchronous app startup
         Task.Run(async () =>
         {
-            // 1. Make sure the DB exists and is on the latest migration
-            await context.Database.MigrateAsync();
+            if (isSqlite)
+            {
+                // /home won't exist on a fresh App Service deploy
+                var dataSource = connectionString
+                    .Split(';', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(p => p.Trim())
+                    .FirstOrDefault(p => p.StartsWith("Data Source=", StringComparison.OrdinalIgnoreCase))
+                    ?.Substring(12).Trim();
 
-            // 2. Seed data if necessary
+                if (!string.IsNullOrEmpty(dataSource))
+                {
+                    var dir = Path.GetDirectoryName(Path.GetFullPath(dataSource));
+                    if (!string.IsNullOrEmpty(dir))
+                        Directory.CreateDirectory(dir);
+                }
+
+                await context.Database.EnsureCreatedAsync();
+            }
+            else
+            {
+                await context.Database.MigrateAsync();
+            }
+
             await context.SeedDataAsync();
-            await searchService.BuildIndexAsync();
+
+            try
+            {
+                await searchService.BuildIndexAsync();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Vector index skipped: {ex.Message}");
+            }
 
         }).GetAwaiter().GetResult();
     }

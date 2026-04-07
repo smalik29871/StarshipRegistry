@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.Extensions.Options;
 using StarshipRegistry.Configuration;
@@ -13,7 +14,7 @@ using System.Threading.Tasks;
 
 namespace StarshipRegistry.Data
 {
-    public class ApplicationDbContext : DbContext
+    public class ApplicationDbContext : IdentityDbContext
     {
         private readonly string _swapiBaseUrl;
 
@@ -36,7 +37,6 @@ namespace StarshipRegistry.Data
         {
             base.OnModelCreating(modelBuilder);
 
-            // 1. Keys Configuration
             modelBuilder.Entity<Starship>().HasKey(s => s.Url);
             modelBuilder.Entity<Character>().HasKey(c => c.Url);
             modelBuilder.Entity<Film>().HasKey(f => f.Url);
@@ -44,13 +44,14 @@ namespace StarshipRegistry.Data
             modelBuilder.Entity<Vehicle>().HasKey(v => v.Url);
             modelBuilder.Entity<Species>().HasKey(s => s.Url);
 
-            // 2. Setup Value Comparer for List<string> (Silences EF Console Warnings)
+            modelBuilder.Entity<Starship>().HasIndex(s => s.Name);
+            modelBuilder.Entity<Starship>().HasIndex(s => s.Created);
+
             var stringListComparer = new ValueComparer<List<string>>(
                 (c1, c2) => (c1 ?? new List<string>()).SequenceEqual(c2 ?? new List<string>()),
                 c => c.Aggregate(0, (a, v) => HashCode.Combine(a, v.GetHashCode())),
                 c => c.ToList());
 
-            // 3. JSON Conversions and Comparers for Film Lists
             modelBuilder.Entity<Film>(entity =>
             {
                 entity.Property(f => f.Characters)
@@ -105,6 +106,9 @@ namespace StarshipRegistry.Data
 
             return await base.SaveChangesAsync(cancellationToken);
         }
+
+        public Task<int> SaveRawAsync(CancellationToken cancellationToken = default)
+            => base.SaveChangesAsync(cancellationToken);
 
         // SWAPI Seeder
         public async Task SeedDataAsync()

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -15,21 +16,22 @@ namespace StarshipRegistry.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly ILogger<HomeController> _logger;
+        private readonly IConfiguration _config;
 
-        public HomeController(ApplicationDbContext context, ILogger<HomeController> logger)
+        public HomeController(ApplicationDbContext context, ILogger<HomeController> logger, IConfiguration config)
         {
             _context = context;
             _logger = logger;
+            _config = config;
         }
 
+        [Authorize]
         public async Task<IActionResult> Index()
         {
             try
             {
                 ViewBag.TotalShips = await _context.Starships.CountAsync();
 
-                // 1. Let's do the string filtering at the database level FIRST. 
-                // This keeps memory low by avoiding pulling rows we can't use anyway.
                 var validCostQuery = _context.Starships
                     .Where(s => s.CostInCredits != null && s.CostInCredits != "" && s.CostInCredits != "unknown");
 
@@ -37,13 +39,10 @@ namespace StarshipRegistry.Controllers
                     .Select(s => s.CostInCredits)
                     .ToListAsync();
 
-                // 2. Safely parse the DB results in memory — EF Core cannot translate custom numeric
-                // string-parsing logic into SQL, so we pull the raw string values and parse in .NET.
                 ViewBag.TotalCost = shipCosts
                     .Select(costStr => long.TryParse(costStr, out long parsedCost) ? parsedCost : 0)
                     .Sum();
 
-                // 3. Keep database payload thin by selecting only the two columns we need for rating
                 var speedData = await _context.Starships
                     .Where(s => s.HyperdriveRating != null && s.HyperdriveRating != "" && s.HyperdriveRating != "unknown")
                     .Select(s => new { s.Name, s.HyperdriveRating })
@@ -65,6 +64,8 @@ namespace StarshipRegistry.Controllers
                 ViewBag.TotalCost = 0;
                 ViewBag.TopSpeedShip = "N/A";
             }
+
+            ViewBag.RegistrationCode = _config["Auth:RegistrationCode"] ?? string.Empty;
 
             return View();
         }

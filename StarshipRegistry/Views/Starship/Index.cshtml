@@ -13,9 +13,15 @@
                 <i class="bi bi-plus-lg me-1"></i> Add Ship
             </a>
             
+            @{ var syncCooldown = (int)(ViewBag.SyncCooldownSeconds ?? 0); }
             <form asp-controller="Starship" asp-action="Seed" method="post" class="d-inline">
-                <button type="submit" class="btn btn-outline-primary ms-2" onclick="showLoader()">
-                    <i class="bi bi-cloud-arrow-down-fill me-1"></i> Sync from SWAPI
+                <button type="submit" id="syncBtn"
+                    class="btn btn-outline-primary ms-2"
+                    onclick="showLoader()"
+                    data-cooldown="@syncCooldown"
+                    @(syncCooldown > 0 ? "disabled" : "")>
+                    <i class="bi bi-cloud-arrow-down-fill me-1"></i>
+                    <span id="syncBtnText">Sync from SWAPI</span>
                 </button>
             </form>
         </div>
@@ -25,6 +31,14 @@
     {
         <div class="alert alert-success alert-dismissible fade show" role="alert">
             <i class="bi bi-check-circle-fill me-2"></i> @TempData["Message"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i> @TempData["Error"]
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
     }
@@ -230,5 +244,26 @@
         function showLoader() {
             document.getElementById('holonet-loader').classList.remove('d-none');
         }
+
+        (function () {
+            const btn = document.getElementById('syncBtn');
+            if (!btn) return;
+            let remaining = parseInt(btn.dataset.cooldown, 10) || 0;
+            if (remaining <= 0) return;
+            const textEl = document.getElementById('syncBtnText');
+            function fmt(s) {
+                return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+            }
+            (function tick() {
+                if (remaining <= 0) {
+                    btn.disabled = false;
+                    textEl.textContent = 'Sync from SWAPI';
+                    return;
+                }
+                textEl.textContent = 'Sync from SWAPI (' + fmt(remaining) + ')';
+                remaining--;
+                setTimeout(tick, 1000);
+            })();
+        })();
     </script>
 }

@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -39,7 +40,8 @@ internal static class StarshipControllerTestFactory
             httpFactory.Object,
             config.Object,
             context,
-            NullLogger<StarshipQueryHelper>.Instance);
+            NullLogger<StarshipQueryHelper>.Instance,
+            Mock.Of<IMemoryCache>());
 
         var detailsHelper = new DetailsHelper(swapiService, context, swapiSettings);
         var searchService = new Mock<StarshipSearchService>(
@@ -47,9 +49,12 @@ internal static class StarshipControllerTestFactory
             Mock.Of<IServiceScopeFactory>(),
             Mock.Of<Microsoft.Extensions.Configuration.IConfiguration>());
         searchService.Setup(service => service.BuildIndexAsync()).Returns(Task.CompletedTask);
+        searchService.Setup(service => service.AddToIndexAsync(It.IsAny<StarshipRegistry.Models.Starship>())).Returns(Task.CompletedTask);
+        searchService.Setup(service => service.RemoveFromIndex(It.IsAny<string>()));
         searchService.Setup(service => service.SearchAsync(It.IsAny<string>(), It.IsAny<int>()))
             .ReturnsAsync(new List<StarshipRegistry.Models.Starship>());
 
+        var controllerCache = new MemoryCache(new MemoryCacheOptions());
         var controller = new StarshipController(
             swapiService,
             context,
@@ -57,7 +62,8 @@ internal static class StarshipControllerTestFactory
             searchService.Object,
             queryHelper,
             NullLogger<StarshipController>.Instance,
-            swapiSettings);
+            swapiSettings,
+            controllerCache);
 
         controller.TempData = new TempDataDictionary(new DefaultHttpContext(), Mock.Of<ITempDataProvider>());
 

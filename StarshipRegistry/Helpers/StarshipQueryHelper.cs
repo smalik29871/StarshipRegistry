@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using StarshipRegistry.Data;
@@ -22,6 +23,7 @@ namespace StarshipRegistry.Helpers
         private readonly string _groqUrl;
         private readonly ApplicationDbContext _context;
         private readonly ILogger<StarshipQueryHelper> _logger;
+        private readonly IMemoryCache _cache;
 
         private const string SystemPrompt = @"You are a query parser for a Star Wars starship database.
 Convert the user's natural language query into a JSON object with these fields:
@@ -40,7 +42,8 @@ Respond ONLY with raw JSON, no markdown, no explanation.";
             IHttpClientFactory httpClientFactory,
             IConfiguration config,
             ApplicationDbContext context,
-            ILogger<StarshipQueryHelper> logger)
+            ILogger<StarshipQueryHelper> logger,
+            IMemoryCache cache)
         {
             _http = httpClientFactory.CreateClient();
             _apiKey = config["Groq:ApiKey"] ?? string.Empty;
@@ -48,12 +51,17 @@ Respond ONLY with raw JSON, no markdown, no explanation.";
             _groqUrl = config["Groq:BaseUrl"] ?? string.Empty;
             _context = context;
             _logger = logger;
+            _cache = cache;
         }
 
         public async Task<SearchCommand> ParseQueryAsync(string userQuery)
         {
             if (string.IsNullOrWhiteSpace(_apiKey) || string.IsNullOrWhiteSpace(_groqUrl))
                 return new SearchCommand { Concept = userQuery };
+
+            var cacheKey = $"groq:{userQuery.Trim().ToLowerInvariant()}";
+            if (_cache.TryGetValue(cacheKey, out SearchCommand? cached) && cached != null)
+                return cached;
 
             try
             {
@@ -78,14 +86,16 @@ Respond ONLY with raw JSON, no markdown, no explanation.";
                 using var doc = JsonDocument.Parse(json);
                 var content = doc.RootElement.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString() ?? "";
 
-                // Pull out the pure JSON block securely
                 int start = content.IndexOf('{');
                 int end = content.LastIndexOf('}');
                 if (start >= 0 && end > start)
                     content = content.Substring(start, end - start + 1);
 
-                return JsonSerializer.Deserialize<SearchCommand>(content, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
+                var result = JsonSerializer.Deserialize<SearchCommand>(content, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
                     ?? new SearchCommand { Concept = userQuery };
+
+                _cache.Set(cacheKey, result, TimeSpan.FromHours(1));
+                return result;
             }
             catch (Exception ex)
             {
@@ -96,10 +106,8 @@ Respond ONLY with raw JSON, no markdown, no explanation.";
 
         public async Task<List<Starship>> ExecuteQueryAsync(SearchCommand command)
         {
-            // 1. Start with the database queryable
             var query = _context.Starships.AsQueryable();
 
-            // 2. Narrow down records at the DB level by removing nulls/unknowns for the sorted column
             query = command.SortBy switch
             {
                 "cost" => query.Where(s => s.CostInCredits != null && s.CostInCredits != "unknown"),
@@ -110,15 +118,9 @@ Respond ONLY with raw JSON, no markdown, no explanation.";
                 _ => query
             };
 
-            // 3. APPLY SAFE UPPER LIMIT
-            // If the database scales to 1,000,000 ships, this keeps the app from crashing.
             const int maxMemorySafeCap = 1000;
+            var filteredShips = await query.Take(maxMemorySafeCap).ToListAsync();
 
-            var filteredShips = await query
-                .Take(maxMemorySafeCap)
-                .ToListAsync(); // Database execution ends here
-
-            // 4. Map the sort target to a local property selector
             Func<Starship, string?> selector = command.SortBy switch
             {
                 "cost" => s => s.CostInCredits,
@@ -129,13 +131,10 @@ Respond ONLY with raw JSON, no markdown, no explanation.";
                 _ => s => s.Name
             };
 
-            // 5. Safely perform numeric sorting on strings in-memory on the restricted set
             var sorted = filteredShips
                 .OrderBy(s => double.TryParse(selector(s), out var num) ? num : 0);
 
             var finalQuery = command.Order == "desc" ? sorted.Reverse() : sorted;
-
-            // 6. Take the requested amount requested by the AI/user
             return finalQuery.Take(command.Take).ToList();
         }
 

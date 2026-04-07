@@ -4,6 +4,29 @@ An Imperial-themed terminal dashboard built with **ASP.NET Core MVC** and **Boot
 
 ---
 
+## 👋 Reviewer Quick Start
+
+> Everything a hiring manager needs to run and log in to the app in under 5 minutes.
+
+**Prerequisites:** [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) · SQL Server LocalDB (ships with Visual Studio)
+
+```bash
+git clone https://github.com/smalik29871/StarshipRegistry
+cd StarshipRegistry/StarshipRegistry
+dotnet run
+```
+
+Then open the URL shown in your console and:
+
+1. Click **Register**
+2. Fill in any email and password *(min 8 chars, 1 uppercase, 1 digit)*
+3. Enter the Imperial Access Code: **`ImperialFleet001`**
+4. Submit — you'll be signed in and landed on the dashboard
+
+> 💡 The access code is intentional security. It prevents open public sign-ups. See the [Authentication](#-authentication) section for more detail.
+
+---
+
 ## 🚀 Key Features
 
 - **Imperial UI Theme** — Custom dark-mode terminal aesthetic with high-contrast glowing elements, built on the `Orbitron` and `Share Tech Mono` typefaces from Google Fonts.
@@ -11,6 +34,7 @@ An Imperial-themed terminal dashboard built with **ASP.NET Core MVC** and **Boot
 - **Vector Semantic Search** — Conceptual queries (e.g. *"rebel fighters"*, *"Imperial warship"*) are handled by a local **Ollama** embedding model (`nomic-embed-text`). Each starship is indexed as a rich text document covering all telemetry fields. Cosine similarity is used to rank results.
 - **SWAPI Integration** — On-demand synchronisation with the [Star Wars API](https://swapi.info) to pull live vessel manifests including films, pilots, planets, species, and vehicles.
 - **Server-Side DataTables** — The registry grid uses DataTables.js in server-side mode. Filtering, sorting, and pagination are all executed as SQL queries — only the current page is ever loaded into the browser.
+- **Smart SWAPI Sync** — Sync is rate-limited to once per 10 minutes via `IMemoryCache` to prevent API abuse. Each upsert compares the SWAPI `edited` timestamp against the stored value and skips rows that have not changed — zero unnecessary DB writes on repeat syncs. While a cooldown is active the Sync button is server-side disabled and a live JavaScript countdown (`m:ss`) is displayed inside the button itself — no extra API call required.
 - **Full CRUD** — Create, view, edit, and delete starship records. Create mode generates a local registry entry; edit mode supports reassigning films and pilots via checkbox selectors.
 - **Auto-Migration & Seeding** — On startup, EF Core applies any pending migrations and seeds initial film data automatically.
 
@@ -151,6 +175,22 @@ If you're using a remote SQL Server instance, update `ConnectionStrings:DefaultC
 
 > **Note:** If Groq is not configured, the AI search bar gracefully falls back to local Ollama vector search for all queries.
 
+### 4a. Set the Imperial Access Code *(authentication)*
+
+Registration is invite-only. A default code is set in `appsettings.json` for development:
+
+```json
+"Auth": {
+  "RegistrationCode": "ImperialFleet001"
+}
+```
+
+For production, store the real code in User Secrets so it never reaches source control:
+
+```bash
+dotnet user-secrets set "Auth:RegistrationCode" "YourRealSecretHere"
+```
+
 ### 4. Run the application
 
 ```bash
@@ -164,6 +204,34 @@ The application will automatically apply EF Core migrations and seed initial fil
 
 Once the app is running, click **Sync from SWAPI** in the top-right of the registry. This pulls all starships, characters, planets, species, and vehicles from SWAPI and rebuilds the vector search index.
 
+> The Sync button is rate-limited to once every **10 minutes** per app instance. Only records whose SWAPI `edited` date is newer than the stored value are updated — repeat syncs produce zero DB writes if nothing has changed upstream. While on cooldown the button renders disabled (server-side) and displays a live countdown timer (e.g. **Sync from SWAPI (9:42)**) via a small JavaScript IIFE — re-enabling automatically when the window expires.
+
+---
+
+## 🔐 Authentication
+
+The application uses **ASP.NET Core Identity** (cookie-based). The home dashboard and all write operations (Create, Edit, Delete, Seed) require a logged-in user. The starship list and detail views are public.
+
+### Registration security
+
+Three independent layers protect the Register page:
+
+| Layer | Mechanism | Purpose |
+|---|---|---|
+| **Honeypot** | Hidden `<input>` invisible to humans, `tabindex="-1"` | Silently rejects automated bot submissions |
+| **IP rate limiting** | `IMemoryCache` — 5 attempts per 15-min sliding window | Prevents scripted brute-force registrations |
+| **Imperial Access Code** | Server-side secret from config/User Secrets | Prevents open public self-registration |
+
+### Password policy
+
+| Rule | Value |
+|---|---|
+| Minimum length | 8 characters |
+| Uppercase required | Yes |
+| Digit required | Yes |
+| Special character | Not required |
+| Email confirmation | Disabled |
+
 ---
 
 ## 🔍 AI Search Examples
@@ -176,11 +244,13 @@ Once the app is running, click **Sync from SWAPI** in the top-right of the regis
 | `rebel fighters` | Groq parses → `Concept: rebel fighters` → Ollama vector search |
 | `give me 3 large cargo ships` | Groq parses → `SortBy: cargo, Order: desc, Take: 3` → EF Core query |
 
+> ⚠️ **Vector search requires data.** Conceptual queries (e.g. *"rebel fighters"*) use Ollama embeddings that are built into an in-memory index at startup and after each Sync. On a fresh install with an empty database, click **Sync from SWAPI** once before running AI searches — structural queries (cost, crew, hyperdrive) work immediately against any rows already in the database.
+
 ---
 
 ## 🧪 Testing
 
-The solution includes a dedicated xUnit test project (`StarshipRegistry.Tests`) covering controller logic, AI query parsing, vector math, and data mapping. All 17 tests run without any external dependencies — no database, no Groq, no Ollama required.
+The solution includes a dedicated xUnit test project (`StarshipRegistry.Tests`) covering controller logic, page models, AI query parsing, vector math, and data mapping. All **33 tests** run without any external dependencies — no database, no Groq, no Ollama required.
 
 ### Running Tests
 
@@ -190,13 +260,33 @@ dotnet test
 
 ### Test Coverage
 
+#### `LoginModelTests` — Identity login page model
+- ✅ `OnPostAsync_InvalidModelState_ReturnsPage`
+- ✅ `OnPostAsync_ValidCredentials_RedirectsToReturnUrl`
+- ✅ `OnPostAsync_ValidCredentials_CallsPasswordSignInWithCorrectCredentials`
+- ✅ `OnPostAsync_InvalidCredentials_ReturnsPageWithError`
+- ✅ `OnPostAsync_LockedOutUser_RedirectsToLockoutPage`
+- ✅ `OnPostAsync_NullReturnUrl_DefaultsToRoot`
+- ✅ `OnGetAsync_SetsReturnUrl`
+- ✅ `OnGetAsync_NullReturnUrl_DefaultsToRoot`
+- ✅ `OnGetAsync_WithErrorMessage_AddsModelError`
+- ✅ `OnGetAsync_SignsOutExternalScheme`
+
+#### `StarshipControllerDataTableTests` — Server-side DataTable
+- ✅ `DataTable_ReturnsAllRecords_WhenNoSearch`
+- ✅ `DataTable_FiltersRecords_BySearchValue`
+- ✅ `DataTable_RespectsPageSize`
+- ✅ `DataTable_RespectsOffset`
+- ✅ `DataTable_SortsByNameAscending`
+- ✅ `DataTable_ReturnsDraw_EchoedBack`
+
 #### `StarshipControllerCrudTests` — Controller behaviour
 - ✅ `Details_returns_not_found_when_ship_is_missing`
 - ✅ `Details_returns_view_model_with_related_names`
 - ✅ `Edit_returns_details_view_when_model_state_is_invalid`
 - ✅ `Edit_updates_selected_relations_and_redirects_to_details`
 - ✅ `Edit_redirects_to_return_url_when_one_is_supplied`
-- ✅ `Delete_removes_a_matching_ship_and_rebuilds_the_index`
+- ✅ `Delete_removes_a_matching_ship_and_updates_the_index`
 - ✅ `Delete_still_redirects_when_ship_is_not_found`
 
 #### `StarshipControllerSeedTests` — SWAPI sync
@@ -220,6 +310,63 @@ dotnet test
 ```bash
 dotnet test --filter "FullyQualifiedName~StarshipRegistry.Tests.StarshipControllerCrudTests"
 ```
+
+---
+
+## ☁️ Azure Deployment (Free Tier)
+
+The app supports **zero-cost Azure deployment** using App Service Free (F1) + SQLite. No paid database service required.
+
+> ℹ️ **Ollama is not available on the Azure Free tier.** The vector search index cannot be built in that environment, so all AI search queries automatically fall back to Groq for structured queries and keyword matching for concept queries. Set `Groq__ApiKey` in Application Settings to keep AI search fully functional.
+
+The database provider is detected automatically at runtime:
+- Connection string containing `Data Source=` → **SQLite** (`EnsureCreated` on first start)
+- Connection string containing `Server=` → **SQL Server** (`MigrateAsync`)
+
+Your local `appsettings.json` is **unchanged** — the switch happens via App Settings in Azure.
+
+### Step-by-step
+
+**1. Create an App Service**
+
+In the [Azure Portal](https://portal.azure.com):
+- **Runtime**: `.NET 8 (LTS)`
+- **OS**: Linux
+- **Plan**: Free F1
+
+**2. Set Application Settings**
+
+Under **Configuration → Application settings**, add:
+
+| Name | Value |
+|------|-------|
+| `ConnectionStrings__DefaultConnection` | `Data Source=/home/starship.db` |
+| `Auth__RegistrationCode` | `ImperialFleet001` |
+| `Groq__ApiKey` | *(your Groq key, optional)* |
+| `SwapiSettings__BaseUrl` | `https://swapi.info/api/` |
+
+> `/home` is the only persistent directory on Azure App Service Linux. The app creates it automatically on first boot.
+
+**3. Deploy**
+
+Option A — GitHub Actions (recommended):
+```bash
+# In Azure Portal → App Service → Deployment Center
+# Connect your GitHub repo → branch: feat_unit-tests_intergration_plus_datatable_fix
+# Azure generates the workflow file automatically
+```
+
+Option B — Visual Studio Publish:
+- Right-click project → **Publish** → **Azure** → **Azure App Service (Linux)**
+
+**4. First boot**
+
+On first request the app will:
+1. Create `/home/starship.db` (SQLite, full schema via `EnsureCreated`)
+2. Seed the starship catalogue from `SeedDataAsync()`
+3. Build the vector search index
+
+> ⚠️ **Ollama** is not available on the free tier — AI search falls back to Groq automatically. Set `Groq__ApiKey` to keep AI search working.
 
 ---
 

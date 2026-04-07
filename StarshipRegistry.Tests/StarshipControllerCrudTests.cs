@@ -147,7 +147,7 @@ public class StarshipControllerCrudTests
     }
 
     [Fact]
-    public async Task Delete_removes_a_matching_ship_and_rebuilds_the_index()
+    public async Task Delete_removes_a_matching_ship_and_updates_the_index()
     {
         var context = TestDbContextFactory.Create(Guid.NewGuid().ToString());
         context.Starships.Add(new Starship
@@ -166,7 +166,7 @@ public class StarshipControllerCrudTests
         Assert.NotNull(result);
         Assert.Equal("Index", result!.ActionName);
         Assert.Empty(context.Starships);
-        searchService.Verify(service => service.BuildIndexAsync(), Times.Once);
+        searchService.Verify(service => service.RemoveFromIndex("https://swapi.info/api/starships/9/"), Times.Once);
     }
 
     [Fact]
@@ -179,6 +179,6 @@ public class StarshipControllerCrudTests
 
         Assert.NotNull(result);
         Assert.Equal("Index", result!.ActionName);
-        searchService.Verify(service => service.BuildIndexAsync(), Times.Never);
+        searchService.Verify(service => service.RemoveFromIndex(It.IsAny<string>()), Times.Never);
     }
 }

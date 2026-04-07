@@ -32,28 +32,25 @@ namespace StarshipRegistry.Services
             await _buildLock.WaitAsync();
             try
             {
-                using (var scope = _scopeFactory.CreateScope())
+                using var scope = _scopeFactory.CreateScope();
+                var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                var starships = await context.Starships.ToListAsync();
+
+                var newEmbeddings = new List<(Starship, ReadOnlyMemory<float>)>(starships.Count);
+                foreach (var ship in starships)
                 {
-                    var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                    var starships = await context.Starships.ToListAsync();
-
-                    // Build into a local list; assign atomically so SearchAsync never sees a partial index.
-                    var newEmbeddings = new List<(Starship, ReadOnlyMemory<float>)>(starships.Count);
-
-                    foreach (var ship in starships)
+                    try
                     {
-                        string searchText = $"search_document: {ship.Name} {ship.Model} {ship.Manufacturer} " +
-                            $"class {ship.StarshipClass} hyperdrive {ship.HyperdriveRating} " +
-                            $"crew {ship.Crew} passengers {ship.Passengers} " +
-                            $"length {ship.Length} speed {ship.MaxAtmospheringSpeed} " +
-                            $"cargo {ship.CargoCapacity} MGLT {ship.Mglt} consumables {ship.Consumables}";
-
-                        var generatedEmbeddings = await _embeddingGenerator.GenerateAsync(new[] { searchText });
-                        newEmbeddings.Add((ship, generatedEmbeddings[0].Vector));
+                        var generated = await _embeddingGenerator.GenerateAsync(new[] { BuildSearchText(ship) });
+                        newEmbeddings.Add((ship, generated[0].Vector));
                     }
-
-                    _cachedEmbeddings = newEmbeddings;
+                    catch (Exception) when (newEmbeddings.Count == 0)
+                    {
+                        return;
+                    }
                 }
+
+                _cachedEmbeddings = newEmbeddings;
             }
             finally
             {
@@ -61,9 +58,46 @@ namespace StarshipRegistry.Services
             }
         }
 
+        public virtual async Task AddToIndexAsync(Starship ship)
+        {
+            if (_cachedEmbeddings == null) return;
+
+            await _buildLock.WaitAsync();
+            try
+            {
+                var generated = await _embeddingGenerator.GenerateAsync(new[] { BuildSearchText(ship) });
+                var current = _cachedEmbeddings;
+                _cachedEmbeddings = current
+                    .Where(e => e.Ship.Url != ship.Url)
+                    .Append((ship, generated[0].Vector))
+                    .ToList();
+            }
+            catch (Exception)
+            {
+                // Ollama unavailable — index unchanged
+            }
+            finally
+            {
+                _buildLock.Release();
+            }
+        }
+
+        public virtual void RemoveFromIndex(string url)
+        {
+            var current = _cachedEmbeddings;
+            if (current == null) return;
+            _cachedEmbeddings = current.Where(e => e.Ship.Url != url).ToList();
+        }
+
+        private static string BuildSearchText(Starship ship) =>
+            $"search_document: {ship.Name} {ship.Model} {ship.Manufacturer} " +
+            $"class {ship.StarshipClass} hyperdrive {ship.HyperdriveRating} " +
+            $"crew {ship.Crew} passengers {ship.Passengers} " +
+            $"length {ship.Length} speed {ship.MaxAtmospheringSpeed} " +
+            $"cargo {ship.CargoCapacity} MGLT {ship.Mglt} consumables {ship.Consumables}";
+
         public virtual async Task<List<Starship>> SearchAsync(string query, int take = 10)
         {
-            // Capture a snapshot so this read is unaffected by a concurrent BuildIndexAsync swap.
             var snapshot = _cachedEmbeddings;
             if (snapshot == null || !snapshot.Any())
                 return new List<Starship>();
