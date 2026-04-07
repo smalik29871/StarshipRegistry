@@ -1,5 +1,7 @@
 # 🌌 Starship Registry
 
+![Build & Deploy Status](https://github.com/smalik29871/StarshipRegistry/actions/workflows/main_starshipregistry.yml/badge.svg)
+
 An Imperial-themed terminal dashboard built with **ASP.NET Core MVC** and **Bootstrap 5**. Serves as a central hub for tracking and managing registered starships, pulling data from the Star Wars API (SWAPI) and combining a cloud LLM with local vector embeddings to power a natural language search interface.
 
 ---
