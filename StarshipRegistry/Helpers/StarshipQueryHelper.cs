@@ -138,6 +138,43 @@ Respond ONLY with raw JSON, no markdown, no explanation.";
             return finalQuery.Take(command.Take).ToList();
         }
 
+        public Task<List<Starship>> FindByNumericValueAsync(string value, int take = 50)
+        {
+            return _context.Starships
+                .Where(s =>
+                    (s.CostInCredits        != null && s.CostInCredits.Contains(value)) ||
+                    (s.Crew                 != null && s.Crew.Contains(value)) ||
+                    (s.Passengers           != null && s.Passengers.Contains(value)) ||
+                    (s.Length               != null && s.Length.Contains(value)) ||
+                    (s.HyperdriveRating     != null && s.HyperdriveRating.Contains(value)) ||
+                    (s.CargoCapacity        != null && s.CargoCapacity.Contains(value)) ||
+                    (s.Mglt                 != null && s.Mglt.Contains(value)) ||
+                    (s.MaxAtmospheringSpeed != null && s.MaxAtmospheringSpeed.Contains(value)))
+                .Take(take)
+                .ToListAsync();
+        }
+
+        public Task<List<Starship>> FindByTextAsync(string text, int take = 50)
+        {
+            return _context.Starships
+                .Where(s =>
+                    s.Name.Contains(text) ||
+                    s.Model.Contains(text) ||
+                    s.StarshipClass.Contains(text) ||
+                    s.Manufacturer.Contains(text) ||
+                    (s.CostInCredits        != null && s.CostInCredits.Contains(text)) ||
+                    (s.Crew                 != null && s.Crew.Contains(text)) ||
+                    (s.Passengers           != null && s.Passengers.Contains(text)) ||
+                    (s.Length               != null && s.Length.Contains(text)) ||
+                    (s.HyperdriveRating     != null && s.HyperdriveRating.Contains(text)) ||
+                    (s.CargoCapacity        != null && s.CargoCapacity.Contains(text)) ||
+                    (s.Mglt                 != null && s.Mglt.Contains(text)) ||
+                    (s.MaxAtmospheringSpeed != null && s.MaxAtmospheringSpeed.Contains(text)) ||
+                    (s.Consumables          != null && s.Consumables.Contains(text)))
+                .Take(take)
+                .ToListAsync();
+        }
+
         public List<object> MapToRows(List<Starship> ships)
         {
             return ships.Select(s => (object)new

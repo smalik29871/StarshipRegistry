@@ -44,7 +44,7 @@ if (isSqlite && !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WEBSIT
         p.StartsWith("Data Source=", StringComparison.OrdinalIgnoreCase));
     if (dsPart is not null)
     {
-        var file = dsPart.Substring("Data Source=".Length).Trim();
+        var file = dsPart["Data Source=".Length..].Trim();
         if (!Path.IsPathRooted(file))
         {
             var home = Environment.GetEnvironmentVariable("HOME") ?? ".";
@@ -105,7 +105,7 @@ using (var scope = app.Services.CreateScope())
                     .Split(';', StringSplitOptions.RemoveEmptyEntries)
                     .Select(p => p.Trim())
                     .FirstOrDefault(p => p.StartsWith("Data Source=", StringComparison.OrdinalIgnoreCase))
-                    ?.Substring(12).Trim();
+                    ?[12..].Trim();
 
                 if (!string.IsNullOrEmpty(dataSource))
                 {

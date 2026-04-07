@@ -12,6 +12,7 @@ using StarshipRegistry.Models.ViewModels;
 using StarshipRegistry.Services;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -161,26 +162,25 @@ namespace StarshipRegistry.Controllers
 
             try
             {
+                var trimmed = query.Trim();
+
+                // 1. Bare numeric queries — match against every numeric string field.
+                if (double.TryParse(trimmed.Replace(",", ""), NumberStyles.Any, CultureInfo.InvariantCulture, out _))
+                    return Json(_queryHelper.MapToRows(await _queryHelper.FindByNumericValueAsync(trimmed)));
+
+                // 2. Text queries — try a direct SQL Contains across all data fields first.
+                //    Only fall through to the AI pipeline when the database returns nothing.
+                var sqlMatches = await _queryHelper.FindByTextAsync(trimmed);
+                if (sqlMatches.Count > 0)
+                    return Json(_queryHelper.MapToRows(sqlMatches));
+
+                // 3. No direct match — hand off to the AI pipeline (sort intent or semantic search).
                 var command = await _queryHelper.ParseQueryAsync(query);
                 var take = command.Take > 0 ? command.Take : 10;
 
-                List<Starship> ships;
-                if (!string.IsNullOrWhiteSpace(command.SortBy))
-                {
-                    ships = await _queryHelper.ExecuteQueryAsync(command);
-                }
-                else
-                {
-                    ships = await _searchService.SearchAsync(command.Concept, take);
-                    if (ships.Count == 0 && !string.IsNullOrWhiteSpace(command.Concept))
-                    {
-                        var kw = command.Concept;
-                        ships = await _context.Starships
-                            .Where(s => s.Name.Contains(kw) || s.Model.Contains(kw) || s.StarshipClass.Contains(kw))
-                            .Take(take)
-                            .ToListAsync();
-                    }
-                }
+                var ships = !string.IsNullOrWhiteSpace(command.SortBy)
+                    ? await _queryHelper.ExecuteQueryAsync(command)
+                    : await _searchService.SearchAsync(command.Concept, take);
 
                 return Json(_queryHelper.MapToRows(ships));
             }

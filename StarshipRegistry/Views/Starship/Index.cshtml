@@ -144,7 +144,11 @@
                 columnDefs: [
                     { responsivePriority: 1, targets: 0 },
                     { responsivePriority: 1, targets: 7 }
-                ]
+                ],
+                layout: {
+                    topStart: 'pageLength',
+                    topEnd: null
+                }
             };
 
             const createServerTable = () => $('#starshipTable').DataTable({

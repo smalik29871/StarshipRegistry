@@ -238,6 +238,8 @@ Three independent layers protect the Register page:
 
 | Query | How it's handled |
 |---|---|
+| `X-wing` | Direct SQL `Contains` match on Name/Model/Class/Manufacturer — no API call |
+| `4500` | Direct SQL `Contains` on numeric fields (Crew, Cost, etc.) — no API call |
 | `most expensive ship` | Groq parses → `SortBy: cost, Order: desc` → EF Core query |
 | `highest crew count` | Groq parses → `SortBy: crew, Order: desc` → EF Core query |
 | `fastest hyperdrive` | Groq parses → `SortBy: hyperdrive, Order: asc` → EF Core query |
@@ -340,12 +342,11 @@ Under **Configuration → Application settings**, add:
 
 | Name | Value |
 |------|-------|
-| `ConnectionStrings__DefaultConnection` | `Data Source=/home/starship.db` |
 | `Auth__RegistrationCode` | `ImperialFleet001` |
-| `Groq__ApiKey` | *(your Groq key, optional)* |
-| `SwapiSettings__BaseUrl` | `https://swapi.info/api/` |
 
-> `/home` is the only persistent directory on Azure App Service Linux. The app creates it automatically on first boot.
+The database connection string no longer needs to be set manually. `appsettings.Production.json` (published with the app) supplies `Data Source=starship.db`, and `Program.cs` detects the `WEBSITE_SITE_NAME` environment variable (set automatically by every Azure App Service) and rewrites the path to `$HOME/starship.db` — the persistent home directory that survives redeployments.
+
+**Groq API key** — if deploying via GitHub Actions, add `GROQ_API_KEY` as a repository secret (Settings → Secrets and variables → Actions). The workflow's *Apply app settings* step pushes it to Azure on every deploy. If deploying manually, add `Groq__ApiKey` to Application Settings instead.
 
 **3. Deploy**
 
