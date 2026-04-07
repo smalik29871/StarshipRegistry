@@ -1,4 +1,4 @@
-# 🌌 Starship Registry
+﻿# 🌌 Starship Registry
 
 ![Build & Deploy Status](https://github.com/smalik29871/StarshipRegistry/actions/workflows/main_starshipregistry.yml/badge.svg)
 
@@ -45,8 +45,8 @@ Then open the URL shown in your console and:
 | Layer | Technology |
 |---|---|
 | Backend | C# / .NET 8 / ASP.NET Core MVC |
-| ORM | Entity Framework Core 8 (SQL Server) |
-| Database | SQL Server / LocalDB |
+| ORM | Entity Framework Core 8 |
+| Database | SQL Server / LocalDB / SQLite (Azure) |
 | Frontend | Razor Views, Bootstrap 5, jQuery, DataTables.js |
 | AI — Query Parsing | Groq API (`llama-3.1-8b-instant`) |
 | AI — Vector Search | Ollama (`nomic-embed-text`) via OllamaSharp |
@@ -175,7 +175,7 @@ If you're using a remote SQL Server instance, update `ConnectionStrings:DefaultC
 
 > **Note:** If Groq is not configured, the AI search bar gracefully falls back to local Ollama vector search for all queries.
 
-### 4a. Set the Imperial Access Code *(authentication)*
+### 4. Set the Imperial Access Code *(authentication)*
 
 Registration is invite-only. A default code is set in `appsettings.json` for development:
 
@@ -185,13 +185,9 @@ Registration is invite-only. A default code is set in `appsettings.json` for dev
 }
 ```
 
-For production, store the real code in User Secrets so it never reaches source control:
+The default code works as-is locally and on Azure. To override it in production, set `Auth__RegistrationCode` in the Azure portal under **Configuration → Application settings** — that value takes precedence over `appsettings.json` and keeps secrets out of source control.
 
-```bash
-dotnet user-secrets set "Auth:RegistrationCode" "YourRealSecretHere"
-```
-
-### 4. Run the application
+### 5. Run the application
 
 ```bash
 dotnet restore
@@ -200,7 +196,7 @@ dotnet run
 
 The application will automatically apply EF Core migrations and seed initial film data on first launch. Navigate to `http://localhost:5000` (or the port shown in your console).
 
-### 5. Sync starship data
+### 6. Sync starship data
 
 Once the app is running, click **Sync from SWAPI** in the top-right of the registry. This pulls all starships, characters, planets, species, and vehicles from SWAPI and rebuilds the vector search index.
 
@@ -338,13 +334,7 @@ In the [Azure Portal](https://portal.azure.com):
 
 **2. Set Application Settings**
 
-Under **Configuration → Application settings**, add:
-
-| Name | Value |
-|------|-------|
-| `Auth__RegistrationCode` | `ImperialFleet001` |
-
-The database connection string no longer needs to be set manually. `appsettings.Production.json` (published with the app) supplies `Data Source=starship.db`, and `Program.cs` detects the `WEBSITE_SITE_NAME` environment variable (set automatically by every Azure App Service) and rewrites the path to `$HOME/starship.db` — the persistent home directory that survives redeployments.
+The database connection string and registration code are already covered by defaults published with the app. `appsettings.Production.json` (published with the app) supplies `Data Source=starship.db`, and `Program.cs` detects the `WEBSITE_SITE_NAME` environment variable (set automatically by every Azure App Service) and rewrites the path to `$HOME/starship.db` — the persistent home directory that survives redeployments.
 
 **Groq API key** — if deploying via GitHub Actions, add `GROQ_API_KEY` as a repository secret (Settings → Secrets and variables → Actions). The workflow's *Apply app settings* step pushes it to Azure on every deploy. If deploying manually, add `Groq__ApiKey` to Application Settings instead.
 
@@ -353,7 +343,7 @@ The database connection string no longer needs to be set manually. `appsettings.
 Option A — GitHub Actions (recommended):
 ```bash
 # In Azure Portal → App Service → Deployment Center
-# Connect your GitHub repo → branch: feat_unit-tests_intergration_plus_datatable_fix
+# Connect your GitHub repo → branch: main
 # Azure generates the workflow file automatically
 ```
 
