@@ -32,6 +32,28 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 var isSqlite = connectionString.Contains("Data Source=", StringComparison.OrdinalIgnoreCase)
              && !connectionString.Contains("Server=", StringComparison.OrdinalIgnoreCase);
 
+// On Azure App Service, redirect relative SQLite paths to the persistent HOME directory
+// so the database survives redeployments. WEBSITE_SITE_NAME is set by Azure App Service.
+if (isSqlite && !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WEBSITE_SITE_NAME")))
+{
+    var parts = connectionString
+        .Split(';', StringSplitOptions.RemoveEmptyEntries)
+        .Select(p => p.Trim())
+        .ToList();
+    var dsPart = parts.FirstOrDefault(p =>
+        p.StartsWith("Data Source=", StringComparison.OrdinalIgnoreCase));
+    if (dsPart is not null)
+    {
+        var file = dsPart.Substring("Data Source=".Length).Trim();
+        if (!Path.IsPathRooted(file))
+        {
+            var home = Environment.GetEnvironmentVariable("HOME") ?? ".";
+            parts[parts.IndexOf(dsPart)] = $"Data Source={Path.Combine(home, file)}";
+            connectionString = string.Join(";", parts);
+        }
+    }
+}
+
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
 {
     if (isSqlite)
