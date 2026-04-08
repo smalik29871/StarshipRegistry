@@ -248,7 +248,7 @@ Three independent layers protect the Register page:
 
 ## 🧪 Testing
 
-The solution includes a dedicated xUnit test project (`StarshipRegistry.Tests`) covering controller logic, page models, AI query parsing, vector math, and data mapping. All **33 tests** run without any external dependencies — no database, no Groq, no Ollama required.
+All **38 tests** run without any external dependencies — no database, no Groq, no Ollama required.
 
 ### Running Tests
 
@@ -286,6 +286,11 @@ dotnet test
 - ✅ `Edit_redirects_to_return_url_when_one_is_supplied`
 - ✅ `Delete_removes_a_matching_ship_and_updates_the_index`
 - ✅ `Delete_still_redirects_when_ship_is_not_found`
+- ✅ `Create_GET_returns_details_view_with_create_page_mode`
+- ✅ `Create_POST_returns_details_view_when_model_state_is_invalid`
+- ✅ `Create_POST_saves_ship_assigns_generated_url_and_redirects_to_details`
+- ✅ `Create_POST_assigns_id_above_existing_max_when_above_threshold`
+- ✅ `Create_POST_saves_selected_pilots_and_films`
 
 #### `StarshipControllerSeedTests` — SWAPI sync
 - ✅ `Seed_syncs_data_and_redirects_to_index`
