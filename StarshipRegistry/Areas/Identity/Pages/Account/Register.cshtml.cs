@@ -110,8 +110,20 @@ namespace StarshipRegistry.Areas.Identity.Pages.Account
                 return LocalRedirect(returnUrl);
             }
 
-            foreach (var error in result.Errors)
+            var hasDuplicate = result.Errors.Any(e =>
+                e.Code is "DuplicateUserName" or "DuplicateEmail");
+
+            if (hasDuplicate)
+                _logger.LogWarning("Registration attempt for already-registered email from IP {IP}.",
+                    HttpContext.Connection.RemoteIpAddress);
+
+            foreach (var error in result.Errors.Where(e =>
+                e.Code is not "DuplicateUserName" and not "DuplicateEmail"))
                 ModelState.AddModelError(string.Empty, error.Description);
+
+            if (hasDuplicate)
+                ModelState.AddModelError(string.Empty,
+                    "Registration failed. Please check your details and try again.");
 
             return Page();
         }

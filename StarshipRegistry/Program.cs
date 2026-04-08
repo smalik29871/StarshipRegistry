@@ -26,6 +26,7 @@ builder.Services.AddDefaultIdentity<IdentityUser>(options =>
     options.Password.RequireNonAlphanumeric = false;
 })
 .AddEntityFrameworkStores<ApplicationDbContext>();
+
 builder.Services.Configure<SwapiSettings>(builder.Configuration.GetSection("SwapiSettings"));
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? string.Empty;

@@ -11,6 +11,11 @@
         </span>
     </li>
     <li class="nav-item">
+        <a class="nav-link text-light" asp-area="Identity" asp-page="/Account/AdminResetPassword">
+            <i class="bi bi-key me-1"></i>Reset Agent Password
+        </a>
+    </li>
+    <li class="nav-item">
         <form asp-area="Identity" asp-page="/Account/Logout" asp-route-returnUrl="@Url.Action("Index", "Home")" method="post">
             <button type="submit" class="btn btn-sm btn-outline-warning nav-link">
                 <i class="bi bi-box-arrow-right me-1"></i>Logout

@@ -210,13 +210,22 @@ The application uses **ASP.NET Core Identity** (cookie-based). The home dashboar
 
 ### Registration security
 
-Three independent layers protect the Register page:
+Four independent layers protect the Register page:
 
 | Layer | Mechanism | Purpose |
 |---|---|---|
 | **Honeypot** | Hidden `<input>` invisible to humans, `tabindex="-1"` | Silently rejects automated bot submissions |
 | **IP rate limiting** | `IMemoryCache` — 5 attempts per 15-min sliding window | Prevents scripted brute-force registrations |
 | **Imperial Access Code** | Server-side secret from config/User Secrets | Prevents open public self-registration |
+| **Email enumeration protection** | `DuplicateUserName`/`DuplicateEmail` Identity errors are caught and replaced with a generic message | Prevents confirming whether an address is already registered |
+
+### Password reset
+
+Password reset works without any email infrastructure. Any logged-in user can navigate to **Reset Agent Password** in the navbar to generate a one-time reset link for any registered email address and share it via a secure channel (Slack, Teams, etc.).
+
+The link is backed by ASP.NET Core Identity's `DataProtectorTokenProvider` — cryptographically signed, **single-use**, and valid for **24 hours**. Once consumed (or expired), the same link returns "expired or already used". Changing the password also rotates the user's security stamp, instantly invalidating any other outstanding tokens.
+
+The reset page itself shows a generic success message whether or not the submitted email matches an account, preventing email enumeration at the point of use.
 
 ### Password policy
 
