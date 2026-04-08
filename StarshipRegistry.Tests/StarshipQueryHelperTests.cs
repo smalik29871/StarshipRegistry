@@ -53,9 +53,9 @@ public class StarshipQueryHelperTests
     {
         var context = TestDbContextFactory.Create(Guid.NewGuid().ToString());
         context.Starships.AddRange(
-            new Starship { Url = "https://swapi.info/api/starships/9/", Name = "Death Star", Model = "DS-1", StarshipClass = "Battlestation", Crew = "342953" },
-            new Starship { Url = "https://swapi.info/api/starships/10/", Name = "Millennium Falcon", Model = "YT-1300", StarshipClass = "Freighter", Crew = "4" },
-            new Starship { Url = "https://swapi.info/api/starships/12/", Name = "X-wing", Model = "T-65 X-wing", StarshipClass = "Starfighter", Crew = "1" });
+            new Starship { Url = SwapiTestUrls.Starship9,  Name = "Death Star",        Model = "DS-1",        StarshipClass = "Battlestation", Crew = "342953" },
+            new Starship { Url = SwapiTestUrls.Starship10, Name = "Millennium Falcon", Model = "YT-1300",     StarshipClass = "Freighter",     Crew = "4" },
+            new Starship { Url = SwapiTestUrls.Starship12, Name = "X-wing",            Model = "T-65 X-wing", StarshipClass = "Starfighter",   Crew = "1" });
         context.SaveChanges();
 
         var helper = CreateHelper(context);
@@ -77,9 +77,9 @@ public class StarshipQueryHelperTests
     {
         var context = TestDbContextFactory.Create(Guid.NewGuid().ToString());
         context.Starships.AddRange(
-            new Starship { Url = "https://swapi.info/api/starships/10/", Name = "Millennium Falcon", Model = "YT-1300", StarshipClass = "Freighter", HyperdriveRating = "0.5" },
-            new Starship { Url = "https://swapi.info/api/starships/12/", Name = "X-wing", Model = "T-65 X-wing", StarshipClass = "Starfighter", HyperdriveRating = "1.0" },
-            new Starship { Url = "https://swapi.info/api/starships/22/", Name = "Unknown Ship", Model = "Prototype", StarshipClass = "Testbed", HyperdriveRating = "unknown" });
+            new Starship { Url = SwapiTestUrls.Starship10, Name = "Millennium Falcon", Model = "YT-1300",     StarshipClass = "Freighter",   HyperdriveRating = "0.5" },
+            new Starship { Url = SwapiTestUrls.Starship12, Name = "X-wing",            Model = "T-65 X-wing", StarshipClass = "Starfighter", HyperdriveRating = "1.0" },
+            new Starship { Url = SwapiTestUrls.Starship22, Name = "Unknown Ship",       Model = "Prototype",   StarshipClass = "Testbed",     HyperdriveRating = "unknown" });
         context.SaveChanges();
 
         var helper = CreateHelper(context);
@@ -106,7 +106,7 @@ public class StarshipQueryHelperTests
         {
             new()
             {
-                Url = "https://swapi.info/api/starships/9/",
+                Url = SwapiTestUrls.Starship9,
                 Name = "Death Star",
                 Model = "DS-1 Orbital Battle Station",
                 StarshipClass = "Deep Space Mobile Battlestation",

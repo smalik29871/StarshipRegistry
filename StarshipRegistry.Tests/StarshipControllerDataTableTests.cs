@@ -19,10 +19,10 @@ public class StarshipControllerDataTableTests
         var context = TestDbContextFactory.Create(Guid.NewGuid().ToString());
 
         context.Starships.AddRange(
-            new Starship { Url = "https://swapi.info/api/starships/9/",  Name = "Death Star",  Model = "DS-1",       StarshipClass = "battlestation", CostInCredits = "1000000000000", Crew = "342953" },
-            new Starship { Url = "https://swapi.info/api/starships/10/", Name = "Millennium Falcon", Model = "YT-1300", StarshipClass = "freighter",    CostInCredits = "100000",       Crew = "4" },
-            new Starship { Url = "https://swapi.info/api/starships/11/", Name = "Y-wing",      Model = "BTL Y-wing",  StarshipClass = "assault starfighter", CostInCredits = "134999", Crew = "2" },
-            new Starship { Url = "https://swapi.info/api/starships/12/", Name = "X-wing",      Model = "T-65 X-wing", StarshipClass = "starfighter",   CostInCredits = "149999",       Crew = "1" }
+            new Starship { Url = SwapiTestUrls.Starship9,  Name = "Death Star",  Model = "DS-1",       StarshipClass = "battlestation", CostInCredits = "1000000000000", Crew = "342953" },
+            new Starship { Url = SwapiTestUrls.Starship10, Name = "Millennium Falcon", Model = "YT-1300", StarshipClass = "freighter",    CostInCredits = "100000",       Crew = "4" },
+            new Starship { Url = SwapiTestUrls.Starship11, Name = "Y-wing",      Model = "BTL Y-wing",  StarshipClass = "assault starfighter", CostInCredits = "134999", Crew = "2" },
+            new Starship { Url = SwapiTestUrls.Starship12, Name = "X-wing",      Model = "T-65 X-wing", StarshipClass = "starfighter",   CostInCredits = "149999",       Crew = "1" }
         );
         context.SaveChanges();
 
