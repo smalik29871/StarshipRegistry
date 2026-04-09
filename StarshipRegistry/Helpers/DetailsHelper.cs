@@ -116,16 +116,8 @@ namespace StarshipRegistry.Helpers
                 nameof(Species) => (DbSet<T>)(object)_context.Species,
                 nameof(Starship) => (DbSet<T>)(object)_context.Starships,
                 nameof(Vehicle) => (DbSet<T>)(object)_context.Vehicles,
-                _ => throw new InvalidOperationException($"No DbSet found for type {typeof(T).Name}")
-            };
-        }
-
-        // Specific wrappers so we don't have to change your existing controller calls!
-        public Task<Dictionary<string, string>> GetFilmNamesBatchAsync(List<string>? urls) => GetNamesBatchAsync<Film>(urls, f => f.Title);
-        public Task<Dictionary<string, string>> GetCharacterNamesBatchAsync(List<string>? urls) => GetNamesBatchAsync<Character>(urls, c => c.Name);
-        public Task<Dictionary<string, string>> GetPlanetNamesBatchAsync(List<string>? urls) => GetNamesBatchAsync<Planet>(urls, p => p.Name);
-        public Task<Dictionary<string, string>> GetStarshipNamesBatchAsync(List<string>? urls) => GetNamesBatchAsync<Starship>(urls, s => s.Name);
-        public Task<Dictionary<string, string>> GetVehicleNamesBatchAsync(List<string>? urls) => GetNamesBatchAsync<Vehicle>(urls, v => v.Name);
-        public Task<Dictionary<string, string>> GetSpeciesNamesBatchAsync(List<string>? urls) => GetNamesBatchAsync<Species>(urls, s => s.Name);
-    }
-}
+                            _ => throw new InvalidOperationException($"No DbSet found for type {typeof(T).Name}")
+                            };
+                        }
+                    }
+                }

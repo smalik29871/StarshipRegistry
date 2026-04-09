@@ -120,9 +120,13 @@ using (var scope = app.Services.CreateScope())
             else
             {
                 await context.Database.MigrateAsync();
-            }
+                }
 
-            await context.SeedDataAsync();
+                if (!await context.Films.AnyAsync())
+                {
+                    var swapiService = services.GetRequiredService<SwapiService>();
+                    await swapiService.SyncAllDataAsync();
+                }
 
             try
             {

@@ -1,5 +1,12 @@
 namespace StarshipRegistry.Models.ViewModels
 {
+    public class StarshipDetailsViewModel
+    {
+        public Starship Starship { get; set; } = new();
+        public Dictionary<string, string> FilmNames { get; set; } = new();
+        public Dictionary<string, string> PilotNames { get; set; } = new();
+    }
+
     public class FilmDetailsViewModel
     {
         public Film Film { get; set; } = new();
