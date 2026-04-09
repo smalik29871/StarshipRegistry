@@ -65,6 +65,59 @@ namespace StarshipRegistry.Controllers
             return View("Details", viewModel);
         }
 
+        [HttpPost]
+        public async Task<IActionResult> Edit(
+            Film film,
+            [FromForm] string[] selectedCharacters,
+            [FromForm] string[] selectedPlanets,
+            [FromForm] string[] selectedStarships,
+            [FromForm] string[] selectedVehicles,
+            [FromForm] string[] selectedSpecies,
+            string returnUrl = "")
+        {
+            if (!ModelState.IsValid)
+            {
+                ViewData["PageMode"] = "Edit";
+                ViewData["ReturnUrl"] = returnUrl;
+                film.Characters = selectedCharacters?.Where(x => !string.IsNullOrEmpty(x)).ToList() ?? new List<string>();
+                film.Planets    = selectedPlanets?.Where(x => !string.IsNullOrEmpty(x)).ToList()    ?? new List<string>();
+                film.Starships  = selectedStarships?.Where(x => !string.IsNullOrEmpty(x)).ToList()  ?? new List<string>();
+                film.Vehicles   = selectedVehicles?.Where(x => !string.IsNullOrEmpty(x)).ToList()   ?? new List<string>();
+                film.Species    = selectedSpecies?.Where(x => !string.IsNullOrEmpty(x)).ToList()    ?? new List<string>();
+
+                await PopulateFormLookupsAsync();
+
+                var viewModel = new FilmDetailsViewModel
+                {
+                    Film = film,
+                    CharacterNames = await _detailsHelper.GetNamesBatchAsync<Character>(film.Characters, c => c.Name),
+                    PlanetNames    = await _detailsHelper.GetNamesBatchAsync<Planet>(film.Planets, p => p.Name),
+                    StarshipNames  = await _detailsHelper.GetNamesBatchAsync<Starship>(film.Starships, s => s.Name),
+                    VehicleNames   = await _detailsHelper.GetNamesBatchAsync<Vehicle>(film.Vehicles, v => v.Name),
+                    SpeciesNames   = await _detailsHelper.GetNamesBatchAsync<Species>(film.Species, s => s.Name)
+                };
+
+                return View("Details", viewModel);
+            }
+
+            film.Characters = selectedCharacters?.Where(x => !string.IsNullOrEmpty(x)).ToList() ?? new List<string>();
+            film.Planets    = selectedPlanets?.Where(x => !string.IsNullOrEmpty(x)).ToList()    ?? new List<string>();
+            film.Starships  = selectedStarships?.Where(x => !string.IsNullOrEmpty(x)).ToList()  ?? new List<string>();
+            film.Vehicles   = selectedVehicles?.Where(x => !string.IsNullOrEmpty(x)).ToList()   ?? new List<string>();
+            film.Species    = selectedSpecies?.Where(x => !string.IsNullOrEmpty(x)).ToList()    ?? new List<string>();
+
+            _context.Update(film);
+            await _context.SaveChangesAsync();
+
+            TempData["Message"] = $"{film.Title} was successfully updated!";
+
+            var numericId = film.Url?.TrimEnd('/').Split('/').Last();
+
+            return Url.IsLocalUrl(returnUrl)
+                ? Redirect(returnUrl)
+                : RedirectToAction(nameof(Details), new { id = numericId });
+        }
+
         private async Task PopulateFormLookupsAsync()
         {
             ViewData["AvailableCharacters"] = await _context.Characters.OrderBy(c => c.Name).ToListAsync();

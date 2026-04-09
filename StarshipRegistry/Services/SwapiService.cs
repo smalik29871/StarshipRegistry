@@ -41,34 +41,6 @@ namespace StarshipRegistry.Services
 
         #region LIVE LOOKUPS FOR UI
 
-        public async Task<List<Film>> GetFilmsAsync()
-        {
-            try
-            {
-                var jsonString = await _httpClient.GetStringAsync($"{_swapiSettings.BaseUrl}films");
-                return JsonSerializer.Deserialize<List<Film>>(jsonString, _jsonOptions) ?? new();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to fetch films from SWAPI.");
-                return new List<Film>();
-            }
-        }
-
-        public async Task<List<Character>> GetPeopleAsync()
-        {
-            try
-            {
-                var jsonString = await _httpClient.GetStringAsync($"{_swapiSettings.BaseUrl}people");
-                return JsonSerializer.Deserialize<List<Character>>(jsonString, _jsonOptions) ?? new();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to fetch people from SWAPI.");
-                return new List<Character>();
-            }
-        }
-
         public async Task<T?> FetchFromApiAsync<T>(string url) where T : class
         {
             try
