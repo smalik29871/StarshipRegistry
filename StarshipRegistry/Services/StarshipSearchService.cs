@@ -36,19 +36,20 @@ namespace StarshipRegistry.Services
                 var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
                 var starships = await context.Starships.ToListAsync();
 
-                var newEmbeddings = new List<(Starship, ReadOnlyMemory<float>)>(starships.Count);
-                foreach (var ship in starships)
+                var texts = starships.Select(s => BuildSearchText(s)).ToList();
+                GeneratedEmbeddings<Embedding<float>> generated;
+                try
                 {
-                    try
-                    {
-                        var generated = await _embeddingGenerator.GenerateAsync(new[] { BuildSearchText(ship) });
-                        newEmbeddings.Add((ship, generated[0].Vector));
-                    }
-                    catch (Exception) when (newEmbeddings.Count == 0)
-                    {
-                        return;
-                    }
+                    generated = await _embeddingGenerator.GenerateAsync(texts);
                 }
+                catch (Exception)
+                {
+                    return;
+                }
+
+                var newEmbeddings = new List<(Starship, ReadOnlyMemory<float>)>(starships.Count);
+                for (int i = 0; i < starships.Count; i++)
+                    newEmbeddings.Add((starships[i], generated[i].Vector));
 
                 _cachedEmbeddings = newEmbeddings;
             }
