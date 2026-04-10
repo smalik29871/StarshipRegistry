@@ -36,7 +36,7 @@ Then open the URL shown in your console and:
 - **Server-Side DataTables** — The registry grid uses DataTables.js in server-side mode. Filtering, sorting, and pagination are all executed as SQL queries — only the current page is ever loaded into the browser.
 - **Smart SWAPI Sync** — Sync is rate-limited to once per 10 minutes via `IMemoryCache` to prevent API abuse. Each upsert compares the SWAPI `edited` timestamp against the stored value and skips rows that have not changed — zero unnecessary DB writes on repeat syncs. While a cooldown is active the Sync button is server-side disabled and a live JavaScript countdown (`m:ss`) is displayed inside the button itself — no extra API call required.
 - **Full CRUD** — Create, view, edit, and delete starship records. Create mode generates a local registry entry; edit mode supports reassigning films and pilots via checkbox selectors.
-- **Auto-Migration & Seeding** — On startup, EF Core applies any pending migrations and seeds initial film data automatically.
+- **Auto-Migration & Seeding** — On startup, EF Core applies any pending migrations. On a fresh database, all entity types (starships, films, characters, planets, species, vehicles) are seeded automatically from SWAPI.
 
 ---
 
@@ -368,7 +368,7 @@ Option B — Visual Studio Publish:
 
 On first request the app will:
 1. Create `/home/starship.db` (SQLite, full schema via `EnsureCreated`)
-2. Seed the starship catalogue from `SeedDataAsync()`
+2. Seed all entity types from SWAPI (starships, films, characters, planets, species, vehicles)
 3. Build the vector search index
 
 > ⚠️ **Ollama** is not available on the free tier — AI search falls back to Groq automatically. Set `Groq__ApiKey` to keep AI search working.
