@@ -186,7 +186,7 @@ namespace StarshipRegistry.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "AI search failed for query {Query}.", query);
+                _logger.LogError(ex, "AI search failed for query {Query}.", query?.Replace('\r', '_').Replace('\n', '_'));
                 return StatusCode(500, new
                 {
                     error = "AI search failed."
@@ -200,7 +200,7 @@ namespace StarshipRegistry.Controllers
 
             if (ship == null)
             {
-                _logger.LogWarning("Starship with ID {Id} could not be retrieved from DB or API.", id);
+                _logger.LogWarning("Starship with ID {Id} could not be retrieved from DB or API.", id?.Replace('\r', '_').Replace('\n', '_'));
                 return NotFound();
             }
 
@@ -305,7 +305,7 @@ namespace StarshipRegistry.Controllers
             }
             else
             {
-                _logger.LogWarning("Delete requested for Starship ID {Id}, but it wasn't found.", id);
+                _logger.LogWarning("Delete requested for Starship ID {Id}, but it wasn't found.", id?.Replace('\r', '_').Replace('\n', '_'));
             }
 
             return RedirectToAction(nameof(Index));

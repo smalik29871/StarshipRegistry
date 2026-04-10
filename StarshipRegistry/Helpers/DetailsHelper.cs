@@ -116,8 +116,8 @@ namespace StarshipRegistry.Helpers
                 nameof(Species) => (DbSet<T>)(object)_context.Species,
                 nameof(Starship) => (DbSet<T>)(object)_context.Starships,
                 nameof(Vehicle) => (DbSet<T>)(object)_context.Vehicles,
-                            _ => throw new InvalidOperationException($"No DbSet found for type {typeof(T).Name}")
-                            };
-                        }
-                    }
-                }
+                _ => throw new InvalidOperationException($"No DbSet found for type {typeof(T).Name}")
+            };
+        }
+    }
+}

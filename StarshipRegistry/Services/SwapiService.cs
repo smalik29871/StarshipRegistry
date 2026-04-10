@@ -52,11 +52,11 @@ namespace StarshipRegistry.Services
                     return JsonSerializer.Deserialize<T>(jsonString, _jsonOptions);
                 }
 
-                _logger.LogWarning("API call to {Url} failed with status code {StatusCode}", url, response.StatusCode);
+                _logger.LogWarning("API call to {Url} failed with status code {StatusCode}", url?.Replace('\r', '_').Replace('\n', '_'), response.StatusCode);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Exception occurred while fetching resource from {Url}", url);
+                _logger.LogError(ex, "Exception occurred while fetching resource from {Url}", url?.Replace('\r', '_').Replace('\n', '_'));
             }
             return null;
         }

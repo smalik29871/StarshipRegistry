@@ -13,7 +13,8 @@
 <div class="container mt-4 pb-5">
     <div class="mb-4">
         @{
-            string backUrl = !string.IsNullOrEmpty(ViewData["ReturnUrl"]?.ToString()) ? ViewData["ReturnUrl"]!.ToString()! : Url.Action("Index", "Starship") ?? "/";
+            var _rv = ViewData["ReturnUrl"]?.ToString() ?? "";
+            string backUrl = (!string.IsNullOrEmpty(_rv) && Url.IsLocalUrl(_rv)) ? _rv : Url.Action("Index", "Starship") ?? "/";
         }
         <a href="@backUrl" class="btn btn-outline-secondary btn-sm">
             <i class="bi bi-arrow-left me-1"></i> Back
@@ -39,6 +40,7 @@
             <div class="ms-3">
                 @{
                     string returnUrl = ViewData["ReturnUrl"]?.ToString() ?? "";
+                    if (!string.IsNullOrEmpty(returnUrl) && !Url.IsLocalUrl(returnUrl)) returnUrl = "";
                 }
                 @if (isEditMode)
                 {

@@ -31,7 +31,7 @@ namespace StarshipRegistry.Controllers
 
             if (planet == null)
             {
-                _logger.LogWarning("Planet with ID {Id} was not found during fetch.", id);
+                _logger.LogWarning("Planet with ID {Id} was not found during fetch.", id?.Replace('\r', '_').Replace('\n', '_'));
                 return NotFound();
             }
 
@@ -62,6 +62,7 @@ namespace StarshipRegistry.Controllers
         }
 
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(Planet planet, [FromForm(Name = "selectedFilms")] string[] selectedFilms, string returnUrl = "")
         {
             if (!ModelState.IsValid)

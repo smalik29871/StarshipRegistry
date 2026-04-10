@@ -14,6 +14,7 @@
     <div class="mb-4">
         @{
             string returnUrl = ViewData["ReturnUrl"]?.ToString() ?? "";
+            if (!string.IsNullOrEmpty(returnUrl) && !Url.IsLocalUrl(returnUrl)) returnUrl = "";
             string backUrl = !string.IsNullOrEmpty(returnUrl) ? returnUrl : Url.Action("Index", "Starship") ?? "/";
         }
         <a href="@backUrl" class="btn btn-outline-secondary btn-sm">

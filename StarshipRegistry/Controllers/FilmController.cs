@@ -31,7 +31,7 @@ namespace StarshipRegistry.Controllers
 
             if (film == null)
             {
-                _logger.LogWarning("Film with ID {Id} could not be retrieved.", id);
+                _logger.LogWarning("Film with ID {Id} could not be retrieved.", id?.Replace('\r', '_').Replace('\n', '_'));
                 return NotFound();
             }
 
@@ -66,6 +66,7 @@ namespace StarshipRegistry.Controllers
         }
 
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(
             Film film,
             [FromForm] string[] selectedCharacters,

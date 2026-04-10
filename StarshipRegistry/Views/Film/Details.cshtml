@@ -10,6 +10,7 @@
     ViewData["Title"] = "Film Dossier - " + Model.Film.Title;
     
     string returnUrl = ViewData["ReturnUrl"]?.ToString() ?? "";
+    if (!string.IsNullOrEmpty(returnUrl) && !Url.IsLocalUrl(returnUrl)) returnUrl = "";
 }
 
 <div class="container mt-4 pb-5">

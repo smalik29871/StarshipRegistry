@@ -31,7 +31,7 @@ namespace StarshipRegistry.Controllers
 
             if (vehicle == null)
             {
-                _logger.LogWarning("Vehicle with ID {Id} was not found during fetch.", id);
+                _logger.LogWarning("Vehicle with ID {Id} was not found during fetch.", id?.Replace('\r', '_').Replace('\n', '_'));
                 return NotFound();
             }
 
@@ -63,6 +63,7 @@ namespace StarshipRegistry.Controllers
         }
 
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(Vehicle vehicle, [FromForm(Name = "selectedPilots")] string[] selectedPilots, [FromForm(Name = "selectedFilms")] string[] selectedFilms, string returnUrl = "")
         {
             if (!ModelState.IsValid)

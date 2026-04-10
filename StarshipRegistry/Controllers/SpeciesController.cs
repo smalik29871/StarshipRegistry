@@ -31,7 +31,7 @@ namespace StarshipRegistry.Controllers
 
             if (species == null)
             {
-                _logger.LogWarning("Species with ID {Id} could not be resolved.", id);
+                _logger.LogWarning("Species with ID {Id} could not be resolved.", id?.Replace('\r', '_').Replace('\n', '_'));
                 return NotFound();
             }
 
@@ -63,6 +63,7 @@ namespace StarshipRegistry.Controllers
         }
 
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(Species species, [FromForm] string[] selectedPeople, [FromForm] string[] selectedFilms, string returnUrl = "")
         {
             if (!ModelState.IsValid)

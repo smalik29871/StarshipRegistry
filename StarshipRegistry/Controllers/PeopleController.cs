@@ -31,7 +31,7 @@ namespace StarshipRegistry.Controllers
 
             if (person == null)
             {
-                _logger.LogWarning("Character with ID {Id} not found in DB or SWAPI.", id);
+                _logger.LogWarning("Character with ID {Id} not found in DB or SWAPI.", id?.Replace('\r', '_').Replace('\n', '_'));
                 return NotFound();
             }
 
@@ -63,6 +63,7 @@ namespace StarshipRegistry.Controllers
         }
 
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(Character character, [FromForm] string[] selectedFilms, [FromForm] string[] selectedStarships, string returnUrl = "")
         {
             if (!ModelState.IsValid)
