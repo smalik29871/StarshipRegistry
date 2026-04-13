@@ -95,9 +95,7 @@ namespace StarshipRegistry.Controllers
 
             var numericId = vehicle.Url?.TrimEnd('/').Split('/').Last();
 
-            return Url.IsLocalUrl(returnUrl)
-                ? Redirect(returnUrl)
-                : RedirectToAction(nameof(Details), new { id = numericId });
+            return RedirectToAction(nameof(Details), new { id = numericId, returnUrl });
         }
 
         private async Task PopulateFormLookupsAsync()

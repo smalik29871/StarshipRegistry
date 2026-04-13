@@ -91,9 +91,7 @@ namespace StarshipRegistry.Controllers
 
             var numericId = planet.Url?.TrimEnd('/').Split('/').Last();
 
-            return Url.IsLocalUrl(returnUrl)
-                ? Redirect(returnUrl)
-                : RedirectToAction(nameof(Details), new { id = numericId });
+            return RedirectToAction(nameof(Details), new { id = numericId, returnUrl });
         }
 
         private async Task PopulateAvailableFilmsAsync()
