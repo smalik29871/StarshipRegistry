@@ -206,7 +206,7 @@ Once the app is running, click **Sync from SWAPI** in the top-right of the regis
 
 ## 🔐 Authentication
 
-The application uses **ASP.NET Core Identity** (cookie-based). The home dashboard and all write operations (Create, Edit, Delete, Seed) require a logged-in user. The starship list and detail views are public.
+The application uses **ASP.NET Core Identity** (cookie-based). All routes under `StarshipController` — the registry list, detail views, and all write operations (Create, Edit, Delete, Seed) — require a logged-in user.
 
 ### Registration security
 

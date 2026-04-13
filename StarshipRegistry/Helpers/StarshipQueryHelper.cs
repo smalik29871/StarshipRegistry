@@ -70,7 +70,8 @@ Respond ONLY with raw JSON, no markdown, no explanation.";
                     model = _model,
                     messages = new[] { new { role = "system", content = SystemPrompt }, new { role = "user", content = userQuery } },
                     temperature = 0,
-                    max_tokens = 100
+                    max_tokens = 100,
+                    response_format = new { type = "json_object" }
                 };
 
                 var request = new HttpRequestMessage(HttpMethod.Post, _groqUrl)
@@ -79,20 +80,18 @@ Respond ONLY with raw JSON, no markdown, no explanation.";
                 };
                 request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
 
-                var response = await _http.SendAsync(request);
+                var response = await _http.SendAsync(request, HttpCompletionOption.ResponseContentRead)
+                    .WaitAsync(TimeSpan.FromSeconds(10));
                 if (!response.IsSuccessStatusCode) return new SearchCommand { Concept = userQuery };
 
                 var json = await response.Content.ReadAsStringAsync();
                 using var doc = JsonDocument.Parse(json);
                 var content = doc.RootElement.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString() ?? "";
 
-                int start = content.IndexOf('{');
-                int end = content.LastIndexOf('}');
-                if (start >= 0 && end > start)
-                    content = content.Substring(start, end - start + 1);
-
                 var result = JsonSerializer.Deserialize<SearchCommand>(content, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
                     ?? new SearchCommand { Concept = userQuery };
+
+                if (result.Take <= 0) result.Take = 10;
 
                 _cache.Set(cacheKey, result, TimeSpan.FromHours(1));
                 return result;
@@ -110,11 +109,11 @@ Respond ONLY with raw JSON, no markdown, no explanation.";
 
             query = command.SortBy switch
             {
-                "cost" => query.Where(s => s.CostInCredits != null && s.CostInCredits != "unknown"),
-                "crew" => query.Where(s => s.Crew != null && s.Crew != "unknown"),
-                "hyperdrive" => query.Where(s => s.HyperdriveRating != null && s.HyperdriveRating != "unknown"),
-                "length" => query.Where(s => s.Length != null && s.Length != "unknown"),
-                "cargo" => query.Where(s => s.CargoCapacity != null && s.CargoCapacity != "unknown"),
+                "cost"       => query.Where(s => s.CostInCredits    != null && s.CostInCredits    != "unknown" && s.CostInCredits    != "n/a"),
+                "crew"       => query.Where(s => s.Crew             != null && s.Crew             != "unknown" && s.Crew             != "n/a"),
+                "hyperdrive" => query.Where(s => s.HyperdriveRating != null && s.HyperdriveRating != "unknown" && s.HyperdriveRating != "n/a"),
+                "length"     => query.Where(s => s.Length           != null && s.Length           != "unknown" && s.Length           != "n/a"),
+                "cargo"      => query.Where(s => s.CargoCapacity    != null && s.CargoCapacity    != "unknown" && s.CargoCapacity    != "n/a"),
                 _ => query
             };
 
