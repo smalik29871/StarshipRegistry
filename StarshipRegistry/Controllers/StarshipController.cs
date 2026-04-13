@@ -18,6 +18,7 @@ using System.Threading.Tasks;
 
 namespace StarshipRegistry.Controllers
 {
+    [Authorize]
     [AutoValidateAntiforgeryToken]
     public class StarshipController : Controller
     {
@@ -60,7 +61,6 @@ namespace StarshipRegistry.Controllers
             return View();
         }
 
-        [Authorize]
         [HttpGet]
         public async Task<IActionResult> Create()
         {
@@ -69,7 +69,6 @@ namespace StarshipRegistry.Controllers
             return View("Details", new StarshipDetailsViewModel());
         }
 
-        [Authorize]
         [HttpPost]
         public async Task<IActionResult> Create(Starship ship, [FromForm] string[] selectedPilots, [FromForm] string[] selectedFilms)
         {
@@ -219,7 +218,6 @@ namespace StarshipRegistry.Controllers
             return View("Details", viewModel);
         }
 
-        [Authorize]
         [HttpPost]
         public async Task<IActionResult> Edit(Starship ship, [FromForm] string[] selectedPilots, [FromForm] string[] selectedFilms, string returnUrl = "")
         {
@@ -256,7 +254,6 @@ namespace StarshipRegistry.Controllers
             return RedirectToAction(nameof(Details), new { id = numericId, returnUrl });
         }
 
-        [Authorize]
         [HttpPost]
         public async Task<IActionResult> Seed()
         {
@@ -284,7 +281,6 @@ namespace StarshipRegistry.Controllers
             return RedirectToAction(nameof(Index));
         }
 
-        [Authorize]
         [HttpPost]
         public async Task<IActionResult> Delete(string id)
         {
