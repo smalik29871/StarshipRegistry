@@ -292,7 +292,7 @@ dotnet test
 - ✅ `Details_returns_view_model_with_related_names`
 - ✅ `Edit_returns_details_view_when_model_state_is_invalid`
 - ✅ `Edit_updates_selected_relations_and_redirects_to_details`
-- ✅ `Edit_redirects_to_return_url_when_one_is_supplied`
+- ✅ `Edit_forwards_return_url_to_details_redirect_when_one_is_supplied`
 - ✅ `Delete_removes_a_matching_ship_and_updates_the_index`
 - ✅ `Delete_still_redirects_when_ship_is_not_found`
 - ✅ `Create_GET_returns_details_view_with_create_page_mode`

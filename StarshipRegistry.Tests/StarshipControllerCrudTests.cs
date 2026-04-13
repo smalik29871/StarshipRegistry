@@ -118,7 +118,7 @@ public class StarshipControllerCrudTests
     }
 
     [Fact]
-    public async Task Edit_redirects_to_return_url_when_one_is_supplied()
+    public async Task Edit_forwards_return_url_to_details_redirect_when_one_is_supplied()
     {
         var context = TestDbContextFactory.Create(Guid.NewGuid().ToString());
         context.Starships.Add(new Starship
@@ -140,10 +140,11 @@ public class StarshipControllerCrudTests
             StarshipClass = "Starfighter"
         };
 
-        var result = await controller.Edit(ship, Array.Empty<string>(), Array.Empty<string>(), "/Starship") as RedirectResult;
+        var result = await controller.Edit(ship, Array.Empty<string>(), Array.Empty<string>(), "/Starship") as RedirectToActionResult;
 
         Assert.NotNull(result);
-        Assert.Equal("/Starship", result!.Url);
+        Assert.Equal("Details", result!.ActionName);
+        Assert.Equal("/Starship", result.RouteValues!["returnUrl"]);
     }
 
     [Fact]
