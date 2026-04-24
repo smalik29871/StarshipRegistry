@@ -130,8 +130,7 @@ namespace StarshipRegistry.Controllers
                 var offset = request.Start >= 0 ? request.Start : 0;
 
                 // Manual fallback for DataTables query string format (e.g. order[0][column]) 
-                // which the default ASP.NET Core model binder often misses for complex arrays in GET requests.
-                if (request.Order == null || request.Order.Length == 0)
+                if (HttpContext?.Request != null && (request.Order == null || request.Order.Length == 0))
                 {
                     var orders = new List<DataTableOrder>();
                     for (int i = 0; Request.Query.ContainsKey($"order[{i}][column]"); i++)
@@ -145,7 +144,7 @@ namespace StarshipRegistry.Controllers
                     request.Order = orders.Count > 0 ? orders.ToArray() : null;
                 }
 
-                if (request.Columns == null || request.Columns.Length == 0)
+                if (HttpContext?.Request != null && (request.Columns == null || request.Columns.Length == 0))
                 {
                     var cols = new List<DataTableColumn>();
                     for (int i = 0; Request.Query.ContainsKey($"columns[{i}][data]"); i++)
