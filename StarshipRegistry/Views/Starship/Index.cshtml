@@ -131,15 +131,17 @@
 
         $(document).ready(function () {
             const tableOptions = {
+                ordering: true,
+                order: [[0, 'asc']],
                 columns: [
-                    { data: 'name', render: n => `<span class="fw-bold">${n}</span>` },
-                    { data: 'model' },
-                    { data: 'starshipClass', render: v => `<span class="text-capitalize">${v}</span>` },
-                    { data: 'costInCredits' },
-                    { data: 'crew' },
-                    { data: 'hyperdriveRating' },
-                    { data: 'created' },
-                    { data: 'id', orderable: false, searchable: false, render: (id, _, row) => actionButtons(id, row.name) }
+                    { data: 'name', name: 'name', render: n => `<span class="fw-bold">${n}</span>` },
+                    { data: 'model', name: 'model' },
+                    { data: 'starshipClass', name: 'starshipClass', render: v => `<span class="text-capitalize">${v}</span>` },
+                    { data: 'costInCredits', name: 'costInCredits' },
+                    { data: 'crew', name: 'crew' },
+                    { data: 'hyperdriveRating', name: 'hyperdriveRating' },
+                    { data: 'created', name: 'created' },
+                    { data: 'id', name: 'id', orderable: true, searchable: false, render: (id, _, row) => actionButtons(id, row.name) }
                 ],
                 columnDefs: [
                     { responsivePriority: 1, targets: 0 },

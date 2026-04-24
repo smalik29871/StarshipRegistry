@@ -14,6 +14,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace StarshipRegistry.Controllers
@@ -127,6 +128,37 @@ namespace StarshipRegistry.Controllers
                 var recordsFiltered = await query.CountAsync();
                 var pageSize = request.Length > 0 ? request.Length : 10;
                 var offset = request.Start >= 0 ? request.Start : 0;
+
+                // Manual fallback for DataTables query string format (e.g. order[0][column]) 
+                // which the default ASP.NET Core model binder often misses for complex arrays in GET requests.
+                if (request.Order == null || request.Order.Length == 0)
+                {
+                    var orders = new List<DataTableOrder>();
+                    for (int i = 0; Request.Query.ContainsKey($"order[{i}][column]"); i++)
+                    {
+                        orders.Add(new DataTableOrder
+                        {
+                            Column = int.TryParse(Request.Query[$"order[{i}][column]"], out var c) ? c : 0,
+                            Dir = Request.Query[$"order[{i}][dir]"].ToString() ?? "asc"
+                        });
+                    }
+                    request.Order = orders.Count > 0 ? orders.ToArray() : null;
+                }
+
+                if (request.Columns == null || request.Columns.Length == 0)
+                {
+                    var cols = new List<DataTableColumn>();
+                    for (int i = 0; Request.Query.ContainsKey($"columns[{i}][data]"); i++)
+                    {
+                        cols.Add(new DataTableColumn
+                        {
+                            Data = Request.Query[$"columns[{i}][data]"],
+                            Name = Request.Query[$"columns[{i}][name]"],
+                            Orderable = bool.TryParse(Request.Query[$"columns[{i}][orderable]"], out var o) && o
+                        });
+                    }
+                    request.Columns = cols.Count > 0 ? cols.ToArray() : null;
+                }
 
                 var ships = await ApplyDataTableOrdering(query, request)
                     .Skip(offset)
@@ -327,19 +359,33 @@ namespace StarshipRegistry.Controllers
 
             var descending = string.Equals(order.Dir, "desc", StringComparison.OrdinalIgnoreCase);
 
-            return (sortColumn ?? "name") switch
+            return (sortColumn ?? "name").ToLowerInvariant() switch
             {
+                "name" => descending ? query.OrderByDescending(s => s.Name) : query.OrderBy(s => s.Name),
+                "id" => descending ? query.OrderByDescending(s => s.Url) : query.OrderBy(s => s.Url),
                 "model" => descending ? query.OrderByDescending(s => s.Model) : query.OrderBy(s => s.Model),
-                "starshipClass" => descending ? query.OrderByDescending(s => s.StarshipClass) : query.OrderBy(s => s.StarshipClass),
-                "costInCredits" => descending
-                    ? query.OrderByDescending(s => (s.CostInCredits ?? "").Length).ThenByDescending(s => s.CostInCredits)
-                    : query.OrderBy(s => (s.CostInCredits ?? "").Length).ThenBy(s => s.CostInCredits),
+                "starshipclass" or "starship_class" => descending ? query.OrderByDescending(s => s.StarshipClass) : query.OrderBy(s => s.StarshipClass),
+                "costincredits" or "cost_in_credits" => descending
+                    ? query.OrderByDescending(s => s.CostInCredits == null || s.CostInCredits == "unknown" || s.CostInCredits == "n/a")
+                           .ThenByDescending(s => s.CostInCredits!.Length)
+                           .ThenByDescending(s => s.CostInCredits)
+                    : query.OrderBy(s => s.CostInCredits == null || s.CostInCredits == "unknown" || s.CostInCredits == "n/a")
+                           .ThenBy(s => s.CostInCredits!.Length)
+                           .ThenBy(s => s.CostInCredits),
                 "crew" => descending
-                    ? query.OrderByDescending(s => (s.Crew ?? "").Length).ThenByDescending(s => s.Crew)
-                    : query.OrderBy(s => (s.Crew ?? "").Length).ThenBy(s => s.Crew),
-                "hyperdriveRating" => descending
-                    ? query.OrderByDescending(s => (s.HyperdriveRating ?? "").Length).ThenByDescending(s => s.HyperdriveRating)
-                    : query.OrderBy(s => (s.HyperdriveRating ?? "").Length).ThenBy(s => s.HyperdriveRating),
+                    ? query.OrderByDescending(s => s.Crew == null || s.Crew == "unknown" || s.Crew == "n/a")
+                           .ThenByDescending(s => s.Crew!.Length)
+                           .ThenByDescending(s => s.Crew)
+                    : query.OrderBy(s => s.Crew == null || s.Crew == "unknown" || s.Crew == "n/a")
+                           .ThenBy(s => s.Crew!.Length)
+                           .ThenBy(s => s.Crew),
+                "hyperdriverating" or "hyperdrive_rating" => descending
+                    ? query.OrderByDescending(s => s.HyperdriveRating == null || s.HyperdriveRating == "unknown" || s.HyperdriveRating == "n/a")
+                           .ThenByDescending(s => s.HyperdriveRating != null && s.HyperdriveRating.Contains(".") ? s.HyperdriveRating.IndexOf(".") : s.HyperdriveRating!.Length)
+                           .ThenByDescending(s => s.HyperdriveRating)
+                    : query.OrderBy(s => s.HyperdriveRating == null || s.HyperdriveRating == "unknown" || s.HyperdriveRating == "n/a")
+                           .ThenBy(s => s.HyperdriveRating != null && s.HyperdriveRating.Contains(".") ? s.HyperdriveRating.IndexOf(".") : s.HyperdriveRating!.Length)
+                           .ThenBy(s => s.HyperdriveRating),
                 "created" => descending ? query.OrderByDescending(s => s.Created) : query.OrderBy(s => s.Created),
                 _ => descending ? query.OrderByDescending(s => s.Name) : query.OrderBy(s => s.Name)
             };
